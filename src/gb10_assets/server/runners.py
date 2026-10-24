@@ -29,7 +29,11 @@ TOOLS: dict[str, ToolSpec] = {t.name: t for t in (
 
 
 class WorkerError(RuntimeError):
-    pass
+    """The worker process is unusable (load failure, crash, kill); the queue discards it."""
+
+
+class JobError(WorkerError):
+    """A single job failed ("error" event); the worker keeps running with its model loaded."""
 
 
 def mem_available_gb() -> float:
@@ -103,6 +107,8 @@ class Worker:
         self.idle_since = time.monotonic()
         if ev.get("event") == "done":
             return list(ev["outputs"])
+        if ev.get("event") == "error":
+            raise JobError(ev.get("message", "job failed"))
         raise WorkerError(ev.get("message", f"unexpected event {ev}"))
 
     def alive(self) -> bool:

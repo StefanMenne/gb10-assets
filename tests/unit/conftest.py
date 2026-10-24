@@ -4,7 +4,7 @@ import time
 import pytest
 
 from gb10_assets.server.config import Settings
-from gb10_assets.server.runners import WorkerError
+from gb10_assets.server.runners import JobError, WorkerError
 
 TOKEN = "test-token-0123456789"
 
@@ -33,7 +33,7 @@ class FakeWorker:
         if self.killed.wait(self.job_seconds):
             raise WorkerError("worker exited with code -9")
         if params.get("prompt") == "fail":
-            raise WorkerError("RuntimeError('bad prompt')")
+            raise JobError("RuntimeError('bad prompt')")
         (job_dir / "out" / "image_1.png").write_bytes(b"png:" + params["prompt"].encode())
         self.idle_since = time.monotonic()
         return ["image_1.png"]

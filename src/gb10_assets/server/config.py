@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -11,8 +11,8 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 @dataclass
 class Settings:
     token: str
-    jobs_dir: Path = field(default_factory=lambda: Path("jobs"))
-    models_dir: Path = field(default_factory=lambda: Path("models"))
+    jobs_dir: Path = REPO_ROOT / "jobs"
+    models_dir: Path = REPO_ROOT / "models"   # same default as scripts/download-all.sh
     tools_dir: Path = REPO_ROOT / "tools"
     # where the per-tool uv environments live: <tool_envs_dir>/<tool>/.venv (Docker: /opt); default tools/<tool>/.venv
     tool_envs_dir: Path | None = None
@@ -30,8 +30,8 @@ class Settings:
         envs = os.environ.get("TOOL_ENVS_DIR")
         return cls(
             token=token,
-            jobs_dir=Path(os.environ.get("JOBS_DIR", "./jobs")).resolve(),
-            models_dir=Path(os.environ.get("MODELS_DIR", "./models")).resolve(),
+            jobs_dir=Path(os.environ.get("JOBS_DIR", REPO_ROOT / "jobs")).resolve(),
+            models_dir=Path(os.environ.get("MODELS_DIR", REPO_ROOT / "models")).resolve(),
             tools_dir=Path(os.environ.get("TOOLS_DIR", REPO_ROOT / "tools")).resolve(),
             tool_envs_dir=Path(envs).resolve() if envs else None,
             worker_idle_s=float(os.environ.get("WORKER_IDLE_S", 0)),

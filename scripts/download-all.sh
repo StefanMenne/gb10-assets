@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Download model weights for all tools, or only the ones named:  scripts/download-all.sh [tool ...]
-# Weights go to $MODELS_DIR/<tool>/ (default ./models). Gated models need HF_TOKEN.
+# Weights go to $MODELS_DIR/<tool>/ (default <repo>/models, where the server looks too). Gated models need
+# HF_TOKEN. Needs uv on the host.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 export MODELS_DIR="${MODELS_DIR:-$ROOT/models}"

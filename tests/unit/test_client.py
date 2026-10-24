@@ -1,6 +1,8 @@
 import asyncio
 import json
+from contextlib import contextmanager
 from functools import partial
+from types import SimpleNamespace
 
 import httpx
 import pytest
@@ -35,6 +37,24 @@ def test_submit_uploads_and_fetch_writes_locally(client, tmp_path):
     assert paths[0].read_bytes() == b"png:fox"
     with pytest.raises(ApiError, match="404"):                   # deleted on the server after fetch
         client.status(info.id)
+
+
+def test_interrupted_download_leaves_no_part_file(client, monkeypatch, tmp_path):
+    info = client.wait(client.submit("flux2-klein", {"prompt": "fox"}).id, 5)
+
+    def chunks():
+        yield b"partial"
+        raise httpx.ReadError("connection lost")
+
+    @contextmanager
+    def stream(method, url):
+        yield SimpleNamespace(status_code=200, iter_bytes=chunks)
+
+    monkeypatch.setattr(client.http, "stream", stream)
+    out = tmp_path / "out"
+    with pytest.raises(httpx.ReadError):
+        client.fetch(info.id, out)
+    assert list(out.iterdir()) == []
 
 
 def test_submit_validates_locally(client, tmp_path):

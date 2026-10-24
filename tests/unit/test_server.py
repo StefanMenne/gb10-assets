@@ -117,6 +117,13 @@ def test_idle_worker_kept_for_later_job(settings):
     assert FakeWorker.started == ["flux2-klein"]
 
 
+def test_job_error_keeps_worker(settings):
+    q = make_queue(settings)
+    ids = [enqueue(q), enqueue(q, prompt="fail"), enqueue(q)]
+    assert [i.state for i in run_queue(q, ids)] == [JobState.done, JobState.failed, JobState.done]
+    assert FakeWorker.started == ["flux2-klein"]
+
+
 def test_worker_released_when_queue_empty(settings):
     q = make_queue(settings)
     run_queue(q, [enqueue(q)])

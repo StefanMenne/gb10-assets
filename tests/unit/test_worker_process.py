@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from gb10_assets.server.config import REPO_ROOT
-from gb10_assets.server.runners import ToolSpec, Worker, WorkerError
+from gb10_assets.server.runners import JobError, ToolSpec, Worker, WorkerError
 
 FAKE_RUN = '''
 import sys
@@ -56,7 +56,7 @@ def test_worker_serves_several_jobs(tool_settings, tmp_path):
         job = tmp_path / "job1"
         assert w.run(job, {"prompt": "hi", "seed": 5, "count": 2}) == ["r_5.txt", "r_6.txt"]
         assert (job / "out" / "r_6.txt").read_text() == "hi"
-        with pytest.raises(WorkerError, match="bad prompt"):
+        with pytest.raises(JobError, match="bad prompt"):
             w.run(tmp_path / "job2", {"prompt": "fail"})
         assert w.run(tmp_path / "job3", {"prompt": "again", "seed": 1}) == ["r_1.txt"]  # still alive
         w.set_log(None)

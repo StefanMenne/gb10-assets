@@ -141,13 +141,16 @@ class Client:
         for name in info.outputs:
             dest = free_path(target / name)
             tmp = dest.with_name(dest.name + ".part")
-            with self.http.stream("GET", f"/jobs/{job_id}/files/{name}") as r:
-                if r.status_code >= 400:
-                    raise ApiError(f"download of {name} failed: HTTP {r.status_code}")
-                with open(tmp, "wb") as f:
-                    for chunk in r.iter_bytes():
-                        f.write(chunk)
-            tmp.replace(dest)
+            try:
+                with self.http.stream("GET", f"/jobs/{job_id}/files/{name}") as r:
+                    if r.status_code >= 400:
+                        raise ApiError(f"download of {name} failed: HTTP {r.status_code}")
+                    with open(tmp, "wb") as f:
+                        for chunk in r.iter_bytes():
+                            f.write(chunk)
+                tmp.replace(dest)
+            finally:
+                tmp.unlink(missing_ok=True)
             paths.append(dest)
         if delete:
             self.delete(job_id)

@@ -5,9 +5,10 @@
 # Downloads a pinned Hugging Face revision into <dest>. Idempotent: `hf download --local-dir` keeps
 # metadata in <dest>/.cache and skips files that are already complete. Gated models need HF_TOKEN in the
 # environment (never write it into the repo); the license link is printed so it can be accepted first.
+# Needs uv on the host (https://docs.astral.sh/uv/): `hf` runs via uvx in a throwaway environment.
 set -euo pipefail
 
-: "${MODELS_DIR:=./models}"
+: "${MODELS_DIR:=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/models}"
 HF_HUB_VERSION=2.3.0
 
 hf_fetch() {
@@ -21,8 +22,14 @@ hf_fetch() {
     fi
     echo "[download] $repo is gated, license: $license"
   fi
+  if ! command -v uvx > /dev/null; then
+    echo "ERROR: uvx not found. Install uv first: curl -LsSf https://astral.sh/uv/install.sh | sh" >&2
+    return 1
+  fi
   mkdir -p "$dest"
   echo "[download] $repo@${rev:0:7} -> $dest"
-  uvx --from "huggingface_hub==$HF_HUB_VERSION" hf download "$repo" --revision "$rev" --local-dir "$dest" "$@" --quiet > /dev/null
+  # --format human: progress bars on stderr even when run by an agent (auto mode hides them then)
+  uvx --from "huggingface_hub==$HF_HUB_VERSION" hf download "$repo" --revision "$rev" --local-dir "$dest" "$@" \
+    --format human > /dev/null
   echo "[download] ok: $dest ($(du -sh "$dest" | cut -f1))"
 }

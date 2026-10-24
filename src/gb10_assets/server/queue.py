@@ -19,7 +19,7 @@ from typing import Callable
 
 from ..shared.schemas import JobInfo, JobState
 from .config import Settings
-from .runners import TOOLS, Worker, WorkerError, mem_available_gb
+from .runners import TOOLS, JobError, Worker, WorkerError, mem_available_gb
 
 LOG_TAIL = 20
 
@@ -190,7 +190,8 @@ class JobQueue:
                 cancelled = job.info.error == "cancelled"
                 result = (JobState.cancelled, None, "cancelled") if cancelled else (JobState.failed, None, str(e))
                 job.log(f"{result[0].value}: {result[2]}")
-                self._stop_worker()
+                if not isinstance(e, JobError):  # after a job error the worker is still up with its model loaded
+                    self._stop_worker()
             with self._cond:
                 self._finish(job, *result)
                 self._running = None
