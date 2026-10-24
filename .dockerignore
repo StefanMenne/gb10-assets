@@ -3,6 +3,7 @@ models/
 jobs/
 # local configuration with secrets
 .env
+.env.bak
 .git/
 .github/
 **/.venv/

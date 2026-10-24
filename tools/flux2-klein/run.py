@@ -21,7 +21,8 @@ def load():
     from diffusers import Flux2KleinPipeline
 
     if not (MODEL / "model_index.json").exists():
-        raise FileNotFoundError(f"{MODEL} missing, run tools/flux2-klein/download.sh")
+        raise FileNotFoundError(f"{MODEL} missing, download it on the GB10 system: "
+                                "scripts/docker.sh download flux2-klein")
     return Flux2KleinPipeline.from_pretrained(MODEL, torch_dtype=torch.bfloat16).to("cuda")
 
 

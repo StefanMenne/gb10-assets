@@ -115,9 +115,10 @@ The server is reachable from every device in the network. The token is its passw
 any device in the network could use the GPU, download your results or delete jobs.
 
 The token lives in the `.env` file in the repo directory on the GB10 system (`~/gb10-assets/.env`), not in the
-container and not in the image. `scripts/docker.sh init` generates it once, when `.env` does not exist yet;
-`build`, `up` and restarts never change it. Docker Compose passes it to the container as an environment
-variable on every start. Each client needs a copy of it (see [Client installation](#client-installation)).
+container and not in the image. `scripts/docker.sh init` generates it; if `.env` already exists, it asks before
+overwriting it and keeps the old file as `.env.bak`. `build`, `up` and restarts never change it. Docker Compose
+passes it to the container as an environment variable on every start. Each client needs a copy of it (see [Client
+installation](#client-installation)).
 
 **New token** (for example if it leaked); then update the clients:
 
@@ -126,10 +127,10 @@ sed -i "s/^GB10_ASSETS_TOKEN=.*/GB10_ASSETS_TOKEN=$(openssl rand -hex 32)/" .env
 scripts/docker.sh up
 ```
 
-**Without authentication:** `GB10_ASSETS_TOKEN=none` in `.env` (what `scripts/docker.sh init_without_token`
-writes) turns the check off: the server accepts every request, with or without a token, and logs a warning at
-startup. Clients then need only `GB10_ASSETS_URL`. Use this only in a trusted network and never forward the
-port to the internet.
+**Without authentication:** `GB10_ASSETS_TOKEN=none` in `.env` (what `scripts/docker.sh init_without_token` writes
+after a security confirmation) turns the check off: the server accepts every request, with or without a token, and
+logs a warning at startup. Clients then need only `GB10_ASSETS_URL`. Use this only in a trusted network and never
+forward the port to the internet.
 
 ## Configuration (`.env`)
 
@@ -155,8 +156,8 @@ Absolute paths, `~/...` and paths relative to the repo directory work. Compose m
 
 | `scripts/docker.sh ...` | Does |
 |---|---|
-| `init` | create `.env` with a random token (once) and the `MODELS_DIR`/`JOBS_DIR` directories |
-| `init_without_token` | the same with `GB10_ASSETS_TOKEN=none` (no authentication) |
+| `init` | create `.env` with a random token and the `MODELS_DIR`/`JOBS_DIR` directories; asks before overwriting an existing `.env` (backup: `.env.bak`) |
+| `init_without_token` | the same with `GB10_ASSETS_TOKEN=none` (no authentication), after a security confirmation |
 | `build` | build the image, tagged `:latest` and `:<version>` from `pyproject.toml` |
 | `pull` | download the published image instead of building it |
 | `push` | upload both tags to the registry |

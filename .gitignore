@@ -9,3 +9,4 @@ __pycache__/
 dist/
 # local configuration with the token (template: .env.example)
 .env
+.env.bak
