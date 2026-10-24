@@ -1,0 +1,9 @@
+# model weights and job results: never commit
+models/
+jobs/
+wheels/
+.venv/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+dist/

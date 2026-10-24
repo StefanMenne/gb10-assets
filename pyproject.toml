@@ -1,0 +1,30 @@
+[project]
+name = "gb10-assets"
+version = "0.1.0"
+description = "Self-hosted generative asset pipeline (image, 3D, video, speech, music) for NVIDIA DGX Spark, ASUS Ascent GX10 and other GB10 systems"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"
+dependencies = ["pydantic>=2.7,<3"]
+
+[project.optional-dependencies]
+# keep the client light: no torch, no image libraries
+client = ["httpx>=0.27,<1", "mcp>=2.3,<3"]
+server = ["fastapi>=0.115", "uvicorn>=0.30", "python-multipart>=0.0.9"]
+
+[project.scripts]
+gb10-assets = "gb10_assets.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8", "httpx>=0.27,<1", "mcp>=2.3,<3", "fastapi>=0.115", "python-multipart>=0.0.9"]
+
+[build-system]
+requires = ["hatchling>=1.26"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gb10_assets"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests/unit"]

@@ -1,0 +1,26 @@
+[project]
+name = "gb10-tool-flux2-klein"
+version = "0.1.0"
+description = "FLUX.2 [klein] 4B worker for gb10-assets"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "torch==2.14.1",
+    "diffusers>=0.42,<0.43",
+    "transformers>=5.20,<6",
+    "accelerate>=1.15",
+    "safetensors>=0.8",
+    "pillow>=11",
+]
+
+[tool.uv]
+package = false
+# GB10 only: aarch64, CUDA 13
+environments = ["sys_platform == 'linux' and platform_machine == 'aarch64'"]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu130" }
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true

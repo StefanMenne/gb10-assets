@@ -1,0 +1,6 @@
+models/
+jobs/
+.git/
+**/.venv/
+**/__pycache__/
+tests/
