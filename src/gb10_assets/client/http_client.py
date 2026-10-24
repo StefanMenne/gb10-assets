@@ -1,6 +1,7 @@
 """HTTP client for the gb10-assets server, shared by the MCP adapter and the CLI.
 
-Configuration: GB10_ASSETS_URL (e.g. http://<gb10-host>:8750) and GB10_ASSETS_TOKEN.
+Configuration: GB10_ASSETS_URL (e.g. http://<gb10-host>:8750) and GB10_ASSETS_TOKEN (unset or "none" when the
+server runs without authentication).
 """
 from __future__ import annotations
 
@@ -49,11 +50,11 @@ class Client:
                  transport: httpx.BaseTransport | None = None, timeout: float = 60):
         url = url or os.environ.get("GB10_ASSETS_URL")
         token = token or os.environ.get("GB10_ASSETS_TOKEN")
-        if not url or not token:
-            raise ApiError("GB10_ASSETS_URL and GB10_ASSETS_TOKEN must be set (server address and bearer token)")
+        if not url:
+            raise ApiError("GB10_ASSETS_URL must be set (server address, e.g. http://<gb10-host>:8750)")
         self.url = url.rstrip("/")
-        self.http = httpx.Client(base_url=self.url, headers={"Authorization": f"Bearer {token}"},
-                                 timeout=timeout, transport=transport)
+        headers = {"Authorization": f"Bearer {token}"} if token and token.lower() != "none" else {}
+        self.http = httpx.Client(base_url=self.url, headers=headers, timeout=timeout, transport=transport)
 
     def _call(self, method: str, path: str, **kw) -> httpx.Response:
         try:

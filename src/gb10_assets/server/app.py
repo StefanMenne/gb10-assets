@@ -1,4 +1,5 @@
-"""HTTP API (FastAPI). Everything except /health requires ``Authorization: Bearer $GB10_ASSETS_TOKEN``.
+"""HTTP API (FastAPI). Everything except /health requires ``Authorization: Bearer $GB10_ASSETS_TOKEN``
+(unless GB10_ASSETS_TOKEN=none, then any request is accepted).
 
     GET    /health                     API version, queue state (no auth, used for the client version check)
     GET    /tools                      tool names and their parameter JSON schemas
@@ -41,6 +42,8 @@ def create_app(settings: Settings, queue: JobQueue | None = None) -> FastAPI:
     app.state.queue = queue
 
     def auth(request: Request) -> None:
+        if settings.token is None:
+            return
         header = request.headers.get("authorization", "")
         scheme, _, token = header.partition(" ")
         if scheme.lower() != "bearer" or not secrets.compare_digest(token.encode(), settings.token.encode()):
@@ -120,6 +123,12 @@ def create_app(settings: Settings, queue: JobQueue | None = None) -> FastAPI:
 
 
 def serve(host: str = "0.0.0.0", port: int = 8750) -> None:
+    import sys
+
     import uvicorn
 
-    uvicorn.run(create_app(Settings.from_env()), host=host, port=port)
+    settings = Settings.from_env()
+    if settings.token is None:
+        print("WARNING: GB10_ASSETS_TOKEN=none, authentication is disabled: everyone who can reach "
+              f"port {port} can submit, read and delete jobs", file=sys.stderr)
+    uvicorn.run(create_app(settings), host=host, port=port)

@@ -91,6 +91,19 @@ def test_missing_config(monkeypatch):
         Client()
 
 
+@pytest.mark.parametrize("token", [None, "none"])
+def test_no_token_sends_no_auth_header(monkeypatch, token):
+    monkeypatch.delenv("GB10_ASSETS_TOKEN", raising=False)
+    seen = []
+
+    def handler(request):
+        seen.append(request.headers.get("authorization"))
+        return httpx.Response(200, json={"status": "ok", "api_version": 1, "version": "0.1.0"})
+
+    Client("http://x", token, transport=httpx.MockTransport(handler)).health()
+    assert seen == [None]
+
+
 def test_upload_names_unique_and_safe(tmp_path):
     taken = set()
     assert upload_name(tmp_path / "a b.png", taken) == "a_b.png"

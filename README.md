@@ -1,136 +1,172 @@
 # gb10-assets
 
-!!! CURRENLTY NOT RUNABLE ; REPO IS STILL UNDER CONSTRUCTION ; PLEASE WAIT !!!
+> **Work in progress:** this repo is still under construction and not usable yet.
 
-Self-hosted generative asset pipeline (image, 3D, video, speech, music) for NVIDIA DGX Spark, ASUS Ascent GX10 and other GB10 systems. 
-
+Self-hosted generative asset pipeline (image, 3D, video, speech, music) for NVIDIA DGX Spark, ASUS Ascent GX10
+and other GB10 systems.
 
 ## Description
 
-Use a GB10 system remote to calculate images, videos, 3d assets for games etc. triggered from a client mashine. 
-Steps (high level) to install and use:
+A GB10 system generates images, videos, 3D assets for games and more, triggered remotely from a client machine.
 
-- Clone this repo on your GB10 compatible system and download or create and then start the docker container
-- Download weights for the models you want to use using delivered scripts
-- Clone this repo on your (working pc) client and execute jobs remote and receive the created assets
+1. **Server (GB10):** clone this repo, pull or build the Docker image, start the container.
+2. **Server (GB10):** download the weights of the models you want to use with the included scripts.
+3. **Client (your workstation):** install the client, submit jobs and receive the generated assets.
 
-The communication between Client and Server can be done via MCP, REST API, or with Claude Plugin (Skills).
+Clients talk to the server via REST API, MCP or the Claude Code plugin (skills). The models are chosen mainly
+for their free licenses.
 
-The supported Models are choosen mainly regarding to have a free license.
+## Server installation (GB10)
 
-## Prerequisites on the GB10 system
+### Prerequisites
 
-Requirements on the GB10 system: Docker with the Compose plugin and the NVIDIA Container Toolkit (both
-preinstalled on DGX OS). The image is built for `linux/arm64` with CUDA 13 and contains the server and the
-Python environment of every tool. Model weights are not in the image; they live in a host directory that is
-mounted into the container.
+Docker with the Compose plugin and the NVIDIA Container Toolkit (both preinstalled on DGX OS). The image is
+built for `linux/arm64` with CUDA 13 and contains the server and the Python environment of every tool. Model
+weights are not part of the image; they live in a host directory that is mounted into the container.
 
+### Steps
 
-
-## Basic Installation on the GB10
-
-Clone the repo
 ```sh
+# 1. clone the repo
 git clone https://github.com/StefanMenne/gb10-assets.git && cd gb10-assets
-```
 
+# 2. create the configuration .env (with a random token) and the models/ and jobs/ directories
+scripts/docker.sh init                  # or without authentication: scripts/docker.sh init_without_token
 
-Create .env File 
+# 3. get the image: pull it from Docker Hub ...
+scripts/docker.sh pull
+#    ... or build it yourself (about 10 minutes the first time)
+scripts/docker.sh build
 
-```sh
-scripts/docker.sh init       # creates .env with a random token, creates models/ and jobs/
-```
-This will create an .env file in the root directory of the repo. It contains a token that needs to be copied to the client. It needs to be passed during requests for safety concerns. You can omit this safety featue with ```scripts/docker.sh init_without_token```. 
+# 4. start the server (port 8750, restarts automatically after a reboot)
+scripts/docker.sh up
 
-Furthermore the cleint needs to know the URL how to access the service. e.G. http://<ip-address>:8750
-
-Get docker image:
-
-Pull it from Docker Hub with
-```sh
-scripts/docker.sh pull  
-```
-
-
-
-or alternatively build it with 
-
-```sh
-scripts/docker.sh build  
-```
-
-Start docker container:
-```sh
-scripts/docker.sh up         # server on port 8750
-```
-
-
-Download the first Model  
-```sh
+# 5. download the first model (FLUX.2 [klein], about 16 GB)
 scripts/docker.sh download flux2-klein
 ```
 
-
-## Basic Installation on the Client
-
-
-Ensure you have this informations:
-- GB10_ASSETS_URL   e.G. http://<ip-address>:8750
-- GB10_ASSETS_TOKEN   from the .env file during ```scripts/docker.sh init```; not needet when using ```scripts/docker.sh init_without_token```
-
-
-Check connection:
-
-curl GB10_ASSETS_URL/health    e.G. curl http://192.168.19.20:8750
-
-
-
-
-
-### Token
-
-Clients need the server URL and the token from `.env`:
+Then check from any machine in the network:
 
 ```sh
-export GB10_ASSETS_URL=http://<gb10-host>:8750
-export GB10_ASSETS_TOKEN=$(grep ^GB10_ASSETS_TOKEN= .env | cut -d= -f2)
+curl http://<gb10-host>:8750/health
+# {"status":"ok","api_version":1,"version":"0.1.0","running":null,"queued":0,"worker":null}
 ```
 
-### Configuration (`.env`)
+## Client installation
 
-`scripts/docker.sh init` copies [`.env.example`](.env.example) to `.env` (not committed, it holds the token).
-Docker Compose reads `.env` automatically; edit it and run `scripts/docker.sh up` again to apply changes.
+The client needs two values from the server:
+
+| Variable | Example | Where from |
+|---|---|---|
+| `GB10_ASSETS_URL` | `http://192.168.178.20:8750` | address of the GB10 system and `GB10_ASSETS_PORT` |
+| `GB10_ASSETS_TOKEN` | `34fa…` (64 characters) | `GB10_ASSETS_TOKEN` in the server's `.env`; not needed with `init_without_token` |
+
+Install the client with [uv](https://docs.astral.sh/uv/) (`curl -LsSf https://astral.sh/uv/install.sh | sh`),
+no clone needed:
+
+```sh
+uv tool install "gb10-assets[client] @ git+https://github.com/StefanMenne/gb10-assets"
+```
+
+Store URL and token once, so every new terminal has them (see [Token](#token)):
+
+```sh
+mkdir -p ~/.config/gb10-assets
+TOKEN=$(ssh <user>@<gb10-host> "grep ^GB10_ASSETS_TOKEN= ~/gb10-assets/.env | cut -d= -f2")
+cat > ~/.config/gb10-assets/env <<EOF
+export GB10_ASSETS_URL=http://<gb10-host>:8750
+export GB10_ASSETS_TOKEN=$TOKEN
+EOF
+chmod 600 ~/.config/gb10-assets/env
+echo '[ -f ~/.config/gb10-assets/env ] && . ~/.config/gb10-assets/env' >> ~/.bashrc
+. ~/.config/gb10-assets/env
+```
+
+Create the first image:
+
+```sh
+gb10-assets image "a red fox in a snowy forest, golden hour" -o ~/gb10-images
+```
+
+The command waits for the result and prints the paths of the PNG files. The first job takes longer because the
+model is loaded first. More options:
+
+```sh
+gb10-assets image "isometric pixel art castle" -n 4 --seed 42 -W 1024 -H 768 -o ~/gb10-images   # 4 variants
+gb10-assets image "the same character, waving" -i ref.png -o ~/gb10-images                     # reference image
+gb10-assets health                                                                             # server state
+gb10-assets log <job-id>                                                                       # log of a failed job
+```
+
+Without installing anything, plain `curl` works too:
+
+```sh
+H="Authorization: Bearer $GB10_ASSETS_TOKEN"
+curl -s -H "$H" "$GB10_ASSETS_URL/jobs" \
+  -F 'request={"tool":"flux2-klein","params":{"prompt":"a red fox in a snowy forest","count":2}}'   # returns "id"
+curl -s -H "$H" "$GB10_ASSETS_URL/jobs/<id>"                                    # "state", "outputs" when done
+curl -s -H "$H" -o fox.png "$GB10_ASSETS_URL/jobs/<id>/files/<output-name>.png"
+```
+
+## Token
+
+The server is reachable from every device in the network. The token is its password: every request except
+`/health` has to send it as `Authorization: Bearer <token>`, otherwise the server answers `401`. Without it,
+any device in the network could use the GPU, download your results or delete jobs.
+
+The token lives in the `.env` file in the repo directory on the GB10 system (`~/gb10-assets/.env`), not in the
+container and not in the image. `scripts/docker.sh init` generates it once, when `.env` does not exist yet;
+`build`, `up` and restarts never change it. Docker Compose passes it to the container as an environment
+variable on every start. Each client needs a copy of it (see [Client installation](#client-installation)).
+
+**New token** (for example if it leaked); then update the clients:
+
+```sh
+sed -i "s/^GB10_ASSETS_TOKEN=.*/GB10_ASSETS_TOKEN=$(openssl rand -hex 32)/" .env
+scripts/docker.sh up
+```
+
+**Without authentication:** `GB10_ASSETS_TOKEN=none` in `.env` (what `scripts/docker.sh init_without_token`
+writes) turns the check off: the server accepts every request, with or without a token, and logs a warning at
+startup. Clients then need only `GB10_ASSETS_URL`. Use this only in a trusted network and never forward the
+port to the internet.
+
+## Configuration (`.env`)
+
+`scripts/docker.sh init` copies [`.env.example`](.env.example) to `.env`. `.env` is not committed because it holds
+the token. Docker Compose reads it automatically; after editing, run `scripts/docker.sh up` to apply the changes.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `GB10_ASSETS_TOKEN` | generated by `init` | bearer token for all API calls, at least 16 characters |
+| `GB10_ASSETS_TOKEN` | generated by `init` | bearer token for all API calls, at least 16 characters; `none` disables authentication |
 | `MODELS_DIR` | `./models` | host directory with the model weights, mounted at `/models` |
 | `JOBS_DIR` | `./jobs` | host directory for job inputs and results, mounted at `/jobs` |
 | `GB10_ASSETS_PORT` | `8750` | host port of the server |
 | `GB10_ASSETS_IMAGE`, `GB10_ASSETS_TAG` | `stefanmenne/gb10-assets`, `latest` | image name for build, push and pull |
-| `GB10_UID`, `GB10_GID` | your user (`init`) | the container runs as this user, so files in `MODELS_DIR` and `JOBS_DIR` belong to you |
+| `GB10_UID`, `GB10_GID` | your user (`init`) | the container runs as this user, so the files in `MODELS_DIR` and `JOBS_DIR` belong to you |
 | `HF_TOKEN` | empty | Hugging Face token, only needed for gated models |
 | `WORKER_IDLE_S`, `MEMORY_WAIT_S`, `WORKER_READY_S`, `JOB_TTL_H` | see `.env.example` | queue tuning |
 
 **Models in another directory**, for example on a second disk: set `MODELS_DIR=/data/gb10-models` in `.env`.
-Absolute paths, `~/...` and paths relative to the repo directory work. Compose mounts that directory and
+Absolute paths, `~/...` and paths relative to the repo directory work. Compose mounts that directory, and
 `scripts/download-all.sh` downloads into it as well. A variable set in the shell overrides `.env`.
 
-### Commands
+## Commands
 
 | `scripts/docker.sh ...` | Does |
 |---|---|
-| `init` | create `.env` (once) and the `MODELS_DIR`/`JOBS_DIR` directories |
+| `init` | create `.env` with a random token (once) and the `MODELS_DIR`/`JOBS_DIR` directories |
+| `init_without_token` | the same with `GB10_ASSETS_TOKEN=none` (no authentication) |
 | `build` | build the image, tagged `:latest` and `:<version>` from `pyproject.toml` |
 | `pull` | download the published image instead of building it |
 | `push` | upload both tags to the registry |
 | `download [tool ...]` | download model weights with the image, no uv needed on the host |
-| `up` / `down` / `logs` | start in the background (restarts automatically), stop, follow the log |
+| `up` / `down` / `logs` | start in the background, stop, follow the log |
 
-The script wraps plain Docker Compose: `docker compose build`, `docker compose up -d`, `docker compose pull`
-and so on work too.
+The script wraps plain Docker Compose: `docker compose build`, `docker compose up -d`, `docker compose pull` and
+so on work too.
 
-### Publishing on Docker Hub
+## Publishing on Docker Hub
 
 ```sh
 docker login                       # Docker Hub account
@@ -139,17 +175,28 @@ scripts/docker.sh build
 scripts/docker.sh push             # pushes :latest and :<version>
 ```
 
-Elsewhere, the image is then used without building: clone the repo (for `compose.yaml` and the scripts), run
-`scripts/docker.sh init`, set the same `GB10_ASSETS_IMAGE`, then `scripts/docker.sh pull` and
+Other GB10 systems then use the image without building it: clone the repo (for `compose.yaml` and the scripts),
+run `scripts/docker.sh init`, set the same `GB10_ASSETS_IMAGE`, then `scripts/docker.sh pull` and
 `scripts/docker.sh up`. `GB10_ASSETS_TAG=0.1.0` pins a version.
 
-### Updating
+## Updating
 
 ```sh
 git pull && scripts/docker.sh build && scripts/docker.sh up    # or: scripts/docker.sh pull && scripts/docker.sh up
+uv tool upgrade gb10-assets                                    # on the client
 ```
 
 Client and server check that they speak the same API version; update both to the same release.
+
+## Model weights
+
+```sh
+scripts/docker.sh download              # all tools inside the container, or name them: ... download flux2-klein
+scripts/download-all.sh                 # the same directly on the host (needs uv)
+```
+
+Weights go to `MODELS_DIR`: the environment variable, else `MODELS_DIR` in `.env`, else `<repo>/models`.
+Gated models need `HF_TOKEN`.
 
 ## Development
 
@@ -160,13 +207,3 @@ uv run --frozen --group dev pytest
 Without Docker, the server runs from the repo: `uv sync` in each `tools/<tool>/`, then
 `GB10_ASSETS_TOKEN=... uv run --extra server gb10-assets server`. It reads its settings from environment
 variables only (not from `.env`); see `src/gb10_assets/server/config.py`.
-
-## Model weights
-
-```sh
-scripts/download-all.sh            # all tools, or name them: scripts/download-all.sh flux2-klein
-```
-
-Weights go to `MODELS_DIR`: the environment variable, else `MODELS_DIR` in `.env`, else `<repo>/models`.
-The download scripts need [uv](https://docs.astral.sh/uv/) on the host; `scripts/docker.sh download` runs them
-inside the image instead. Gated models need `HF_TOKEN`.

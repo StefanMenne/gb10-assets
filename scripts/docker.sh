@@ -2,6 +2,7 @@
 # Docker helper for the gb10-assets server. Settings come from .env (see .env.example).
 #
 #   scripts/docker.sh init                create .env with a random token, create the models/jobs directories
+#   scripts/docker.sh init_without_token  the same, but without authentication (GB10_ASSETS_TOKEN=none)
 #   scripts/docker.sh build               build the image (tags :<GB10_ASSETS_TAG> and :<version>)
 #   scripts/docker.sh push                push both tags (docker login first)
 #   scripts/docker.sh pull                pull the published image instead of building it
@@ -28,15 +29,24 @@ make_dirs() {
 
 cmd=${1:-}; shift || true
 case $cmd in
-  init)
+  init | init_without_token)
     if [[ -f .env ]]; then
-      echo ".env exists, not changed"
+      echo ".env exists, not changed (token: edit GB10_ASSETS_TOKEN in .env, then $0 up)"
     else
-      command -v openssl > /dev/null || { echo "ERROR: openssl not found" >&2; exit 1; }
-      sed -e "s/^GB10_ASSETS_TOKEN=.*/GB10_ASSETS_TOKEN=$(openssl rand -hex 32)/" \
+      if [[ $cmd == init ]]; then
+        command -v openssl > /dev/null || { echo "ERROR: openssl not found" >&2; exit 1; }
+        token=$(openssl rand -hex 32)
+      else
+        token=none
+      fi
+      sed -e "s/^GB10_ASSETS_TOKEN=.*/GB10_ASSETS_TOKEN=$token/" \
           -e "s/^GB10_UID=.*/GB10_UID=$(id -u)/" -e "s/^GB10_GID=.*/GB10_GID=$(id -g)/" .env.example > .env
       chmod 600 .env
-      echo "created .env (token: grep GB10_ASSETS_TOKEN .env)"
+      if [[ $token == none ]]; then
+        echo "created .env without authentication: everyone who can reach the server can use it"
+      else
+        echo "created .env (token: grep GB10_ASSETS_TOKEN .env)"
+      fi
     fi
     dir=${ENV_MODELS_DIR:-$(env_value MODELS_DIR)}; MODELS_DIR=$(abs_path "${dir:-models}")   # from the new .env
     make_dirs
@@ -71,7 +81,7 @@ case $cmd in
     docker compose run --rm --no-deps server scripts/download-all.sh "$@"
     ;;
   *)
-    sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'
     [[ -z $cmd ]] || exit 1
     ;;
 esac

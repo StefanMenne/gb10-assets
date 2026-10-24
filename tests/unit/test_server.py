@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 
 from gb10_assets.server import runners
 from gb10_assets.server.app import create_app
+from gb10_assets.server.config import Settings
 from gb10_assets.server.queue import JobQueue
 from gb10_assets.shared.schemas import API_VERSION, JobState
 
@@ -37,6 +38,26 @@ def test_health_without_auth(api):
 @pytest.mark.parametrize("headers", [{}, {"Authorization": "Bearer wrong"}, {"Authorization": TOKEN}])
 def test_auth_required(api, headers):
     assert api.get("/jobs", headers=headers).status_code == 401
+
+
+@pytest.mark.parametrize("headers", [{}, {"Authorization": "Bearer anything"}])
+def test_auth_disabled(settings, headers):
+    settings.token = None
+    with TestClient(create_app(settings, make_queue(settings))) as client:
+        assert client.get("/jobs", headers=headers).status_code == 200
+
+
+@pytest.mark.parametrize("value", ["none", "NONE"])
+def test_token_none_disables_auth(monkeypatch, value):
+    monkeypatch.setenv("GB10_ASSETS_TOKEN", value)
+    assert Settings.from_env().token is None
+
+
+@pytest.mark.parametrize("value", ["", "short"])
+def test_token_too_short(monkeypatch, value):
+    monkeypatch.setenv("GB10_ASSETS_TOKEN", value)
+    with pytest.raises(SystemExit, match="none"):
+        Settings.from_env()
 
 
 def test_job_roundtrip(api):

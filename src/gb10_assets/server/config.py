@@ -6,11 +6,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
+NO_TOKEN = "none"  # GB10_ASSETS_TOKEN=none: no authentication, every request is accepted
 
 
 @dataclass
 class Settings:
-    token: str
+    token: str | None  # None: authentication disabled
     jobs_dir: Path = REPO_ROOT / "jobs"
     models_dir: Path = REPO_ROOT / "models"   # same default as scripts/download-all.sh
     tools_dir: Path = REPO_ROOT / "tools"
@@ -23,10 +24,12 @@ class Settings:
 
     @classmethod
     def from_env(cls) -> Settings:
-        token = os.environ.get("GB10_ASSETS_TOKEN", "")
-        if len(token) < 16:
+        token: str | None = os.environ.get("GB10_ASSETS_TOKEN", "")
+        if token.lower() == NO_TOKEN:
+            token = None
+        elif len(token) < 16:
             raise SystemExit("GB10_ASSETS_TOKEN must be set to a random string of at least 16 characters "
-                             "(e.g. `openssl rand -hex 32`)")
+                             f"(e.g. `openssl rand -hex 32`), or to {NO_TOKEN!r} to disable authentication")
         envs = os.environ.get("TOOL_ENVS_DIR")
         return cls(
             token=token,
