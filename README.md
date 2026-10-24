@@ -1,26 +1,93 @@
 # gb10-assets
 
-Self-hosted generative asset pipeline (image, 3D, video, speech, music) for NVIDIA DGX Spark, ASUS Ascent GX10 and other GB10 systems.
+!!! CURRENLTY NOT RUNABLE ; REPO IS STILL UNDER CONSTRUCTION ; PLEASE WAIT !!!
 
-Work in progress.
+Self-hosted generative asset pipeline (image, 3D, video, speech, music) for NVIDIA DGX Spark, ASUS Ascent GX10 and other GB10 systems. 
 
-## Server with Docker
+
+## Description
+
+Use a GB10 system remote to calculate images, videos, 3d assets for games etc. triggered from a client mashine. 
+Steps (high level) to install and use:
+
+- Clone this repo on your GB10 compatible system and download or create and then start the docker container
+- Download weights for the models you want to use using delivered scripts
+- Clone this repo on your (working pc) client and execute jobs remote and receive the created assets
+
+The communication between Client and Server can be done via MCP, REST API, or with Claude Plugin (Skills).
+
+The supported Models are choosen mainly regarding to have a free license.
+
+## Prerequisites on the GB10 system
 
 Requirements on the GB10 system: Docker with the Compose plugin and the NVIDIA Container Toolkit (both
 preinstalled on DGX OS). The image is built for `linux/arm64` with CUDA 13 and contains the server and the
 Python environment of every tool. Model weights are not in the image; they live in a host directory that is
 mounted into the container.
 
-### Quick start
 
+
+## Basic Installation on the GB10
+
+Clone the repo
 ```sh
 git clone https://github.com/StefanMenne/gb10-assets.git && cd gb10-assets
-scripts/docker.sh init       # creates .env with a random token, creates models/ and jobs/
-scripts/docker.sh build      # or: scripts/docker.sh pull  (published image, no build)
-scripts/docker.sh download   # model weights into MODELS_DIR (all tools, or name them: ... download flux2-klein)
-scripts/docker.sh up         # server on port 8750
-curl http://localhost:8750/health
 ```
+
+
+Create .env File 
+
+```sh
+scripts/docker.sh init       # creates .env with a random token, creates models/ and jobs/
+```
+This will create an .env file in the root directory of the repo. It contains a token that needs to be copied to the client. It needs to be passed during requests for safety concerns. You can omit this safety featue with ```scripts/docker.sh init_without_token```. 
+
+Furthermore the cleint needs to know the URL how to access the service. e.G. http://<ip-address>:8750
+
+Get docker image:
+
+Pull it from Docker Hub with
+```sh
+scripts/docker.sh pull  
+```
+
+
+
+or alternatively build it with 
+
+```sh
+scripts/docker.sh build  
+```
+
+Start docker container:
+```sh
+scripts/docker.sh up         # server on port 8750
+```
+
+
+Download the first Model  
+```sh
+scripts/docker.sh download flux2-klein
+```
+
+
+## Basic Installation on the Client
+
+
+Ensure you have this informations:
+- GB10_ASSETS_URL   e.G. http://<ip-address>:8750
+- GB10_ASSETS_TOKEN   from the .env file during ```scripts/docker.sh init```; not needet when using ```scripts/docker.sh init_without_token```
+
+
+Check connection:
+
+curl GB10_ASSETS_URL/health    e.G. curl http://192.168.19.20:8750
+
+
+
+
+
+### Token
 
 Clients need the server URL and the token from `.env`:
 
