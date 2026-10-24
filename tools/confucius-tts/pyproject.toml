@@ -1,0 +1,28 @@
+[project]
+name = "gb10-tool-confucius-tts"
+version = "0.1.0"
+description = "Confucius4-TTS worker (cross-lingual zero-shot voice cloning) for gb10-assets"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    # torchaudio has no cu130 wheels after 2.11, so this tool stays on torch 2.11
+    "torch==2.11.0",
+    "torchaudio==2.11.0",
+    # not on PyPI: a pinned GitHub archive (no git needed in the image) (it pins transformers <4.56)
+    "confuciustts",
+    "soundfile>=0.13",
+]
+
+[tool.uv]
+package = false
+# GB10 only: aarch64, CUDA 13
+environments = ["sys_platform == 'linux' and platform_machine == 'aarch64'"]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu130" }
+torchaudio = { index = "pytorch-cu130" }
+confuciustts = { url = "https://github.com/netease-youdao/Confucius4-TTS/archive/f50e319bca8d9889f8ff92c1a0c782f7c6ea47d0.tar.gz" }
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true

@@ -26,6 +26,8 @@ class ToolSpec:
 TOOLS: dict[str, ToolSpec] = {t.name: t for t in (
     ToolSpec("flux2-klein", min_free_gb=30),
     ToolSpec("qwen-image-edit", min_free_gb=70),  # measured peak ~63 GB (bf16 weights + LoRA, 1 MP)
+    ToolSpec("qwen-tts", min_free_gb=20),  # VoiceDesign + Base, 2 x 4.5 GB bf16; estimate, not measured yet
+    ToolSpec("confucius-tts", min_free_gb=16),  # T2S 2.6 GB + w2v-BERT 2.3 GB (fp32) + S2A + BigVGAN; estimate
 )}
 
 

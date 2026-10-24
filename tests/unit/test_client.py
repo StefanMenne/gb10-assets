@@ -165,6 +165,22 @@ def test_mcp_edit_image_uploads_inputs(client, tmp_path):
         client.submit("qwen-image-edit", {"prompt": "x", "images": [str(tmp_path / "missing.png")]})
 
 
+def test_mcp_speech_tools(client, tmp_path):
+    ref = tmp_path / "stimme 1.wav"
+    ref.write_bytes(b"wav")
+    server = mcp_server.build(mcp_server.Adapter(client))
+    calls = [("design_voice", {"voice_description": "warm", "text": "Hallo", "language": "de"}, "qwen-tts"),
+             ("speak", {"texts": ["a", "b"], "reference_audio": str(ref), "reference_text": "Hallo"}, "qwen-tts"),
+             ("speak_multilingual", {"texts": ["x"], "language": "th", "reference_audio": str(ref)}, "confucius-tts")]
+    for name, args, tool in calls:
+        sub = json.loads(call(server, name, args).content[0].text)
+        info = client.wait(sub["job_id"], 5)
+        assert info.state.value == "done" and info.tool == tool
+    with pytest.raises(Exception) as exc:  # Thai is not a Qwen3-TTS language
+        call(server, "speak", {"texts": ["x"], "reference_audio": str(ref), "language": "th"})
+    assert "invalid parameters" in str(exc.value.__cause__)
+
+
 def test_mcp_refuses_to_start_on_mismatch(monkeypatch, capsys):
     def handler(request):
         return httpx.Response(200, json={"status": "ok", "api_version": 999, "version": "9.9.9"})

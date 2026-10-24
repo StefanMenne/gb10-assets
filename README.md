@@ -22,6 +22,8 @@ for their free licenses.
 |---|---|---|---|---|---|
 | `flux2-klein` | [FLUX.2 \[klein\] 4B](https://huggingface.co/black-forest-labs/FLUX.2-klein-4B) | text to image, optional reference images | Apache-2.0 | ~16 GB | `gb10-assets image` |
 | `qwen-image-edit` | [Qwen-Image-Edit-2511](https://huggingface.co/Qwen/Qwen-Image-Edit-2511) with the 4-step [Lightning LoRA](https://huggingface.co/lightx2v/Qwen-Image-Edit-2511-Lightning) | edit 1-3 images with an instruction | Apache-2.0 | ~59 GB | `gb10-assets edit` |
+| `qwen-tts` | [Qwen3-TTS 1.7B VoiceDesign](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign) and [Base](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-Base) | speech with a voice designed from a description or cloned from a recording; de, en, es, fr, it, ja, ko, pt, ru, zh | Apache-2.0 | ~9 GB | `gb10-assets voice`, `speak` |
+| `confucius-tts` | [Confucius4-TTS](https://huggingface.co/netease-youdao/Confucius4-TTS) | cross-lingual voice cloning (e.g. a German voice speaking Thai); 14 languages incl. th, vi, id, ms | Apache-2.0 | ~6 GB | `gb10-assets speak-multilingual` |
 
 The server keeps one model in memory at a time and switches when a job for another tool arrives.
 
@@ -105,6 +107,9 @@ gb10-assets image "isometric pixel art castle" -n 4 --seed 42 -W 1024 -H 768 -o 
 gb10-assets image "the same character, waving" -i ref.png -o ~/gb10-images                     # reference image
 gb10-assets edit "replace the background with a beach at sunset" -i photo.png -o ~/gb10-images   # edit an image
 gb10-assets edit "the cat from image 1 sits on the sofa from image 2" -i cat.png -i sofa.png -o ~/gb10-images
+gb10-assets voice "warm female voice, about 40, calm, slow pace" "Hallo, schön dass du da bist." -l de -o ~/gb10-voices
+gb10-assets speak "Willkommen im Spiel!" "Bis bald." -r voice.wav -T voice.txt -l de -o ~/gb10-voices  # cloned voice
+gb10-assets speak-multilingual "สวัสดีครับ ยินดีต้อนรับ" -r voice.wav -l th -o ~/gb10-voices      # German voice, Thai text
 gb10-assets health                                                                             # server state
 gb10-assets log <job-id>                                                                       # log of a failed job
 ```

@@ -12,9 +12,9 @@ from __future__ import annotations
 import re
 from datetime import datetime
 from enum import Enum
-from typing import Annotated, ClassVar
+from typing import Annotated, ClassVar, Literal
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
 
 API_VERSION = 1
 
@@ -88,7 +88,54 @@ class EditImage(JobRequest):
     count: Count = 1
 
 
-REQUESTS: dict[str, type[JobRequest]] = {m.tool: m for m in (GenerateImage, EditImage)}
+# ISO 639-1 codes; each worker maps them to its model's own language names
+QwenLanguage = Literal["auto", "de", "en", "es", "fr", "it", "ja", "ko", "pt", "ru", "zh"]
+ConfuciusLanguage = Literal["de", "en", "es", "fr", "id", "it", "ja", "ko", "ms", "pt", "ru", "th", "vi", "zh"]
+Texts = Annotated[list[Annotated[str, Field(min_length=1, max_length=2000)]], Field(
+    min_length=1, max_length=64, description="One output file per text; the model is loaded once for all of them")]
+SpeechCount = Annotated[int, Field(ge=1, le=16, description="Variants per text (seeds seed..seed+count-1)")]
+
+
+class Speak(JobRequest):
+    """Text to speech with Qwen3-TTS 1.7B: either a new voice from a description (VoiceDesign model) or a cloned
+    voice from a reference recording (Base model)."""
+
+    tool: ClassVar[str] = "qwen-tts"
+    input_fields: ClassVar[tuple[str, ...]] = ("reference_audio",)
+
+    texts: Texts
+    language: QwenLanguage = "auto"
+    voice_description: str | None = Field(None, min_length=1, max_length=2000, description=(
+        "VoiceDesign: natural-language description of the voice (gender, age, pitch, timbre, emotion, pace)"))
+    reference_audio: FileName | None = Field(None, description="Voice cloning: recording of the voice, 3-20 s")
+    reference_text: str | None = Field(None, min_length=1, max_length=2000, description=(
+        "Transcript of reference_audio; without it only the speaker embedding is used (lower similarity)"))
+    seed: Seed | None = None
+    count: SpeechCount = 1
+
+    @model_validator(mode="after")
+    def _one_voice(self):
+        if (self.voice_description is None) == (self.reference_audio is None):
+            raise ValueError("give either voice_description or reference_audio")
+        if self.reference_text is not None and self.reference_audio is None:
+            raise ValueError("reference_text needs reference_audio")
+        return self
+
+
+class SpeakMultilingual(JobRequest):
+    """Cross-lingual voice cloning with Confucius4-TTS: the reference may speak another language than the text."""
+
+    tool: ClassVar[str] = "confucius-tts"
+    input_fields: ClassVar[tuple[str, ...]] = ("reference_audio",)
+
+    texts: Texts
+    language: ConfuciusLanguage
+    reference_audio: FileName = Field(description="Recording of the voice in any language, 3-20 s")
+    seed: Seed | None = None
+    count: SpeechCount = 1
+
+
+REQUESTS: dict[str, type[JobRequest]] = {m.tool: m for m in (GenerateImage, EditImage, Speak, SpeakMultilingual)}
 
 
 class SubmitJob(BaseModel):

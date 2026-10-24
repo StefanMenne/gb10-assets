@@ -21,7 +21,9 @@ INSTRUCTIONS = """Generates media assets on a self-hosted NVIDIA GB10 server.
 Generating tools only queue a job and return a job_id. Then call fetch_result(job_id, target_dir, wait=...)
 to download the results; with wait=0 it returns the current state without blocking. The server runs one GPU
 job at a time and loads the model per job, so request all variants in one call (count) instead of many calls.
-Look at generated images with the Read tool before using them."""
+Look at generated images with the Read tool before using them.
+Speech: design_voice creates a voice from a description, speak clones a voice for de/en and 8 more languages,
+speak_multilingual clones a voice into languages such as Thai, even from a reference in another language."""
 
 
 class Adapter:
@@ -95,6 +97,54 @@ def build(adapter: Adapter | None = None) -> MCPServer:
         params = {"prompt": prompt, "images": images, "seed": seed, "count": count, "width": width,
                   "height": height}
         return submitted(adapter.client.submit("qwen-image-edit", params))
+
+    @mcp.tool()
+    def design_voice(
+        voice_description: Annotated[str, Field(description=(
+            "Description of the voice, e.g. 'warm female voice, about 40, low pitch, calm and friendly, slow pace'"))],
+        text: Annotated[str, Field(description="What the voice says; 5-15 s of speech makes a good clone reference")],
+        language: Annotated[str, Field(description="auto, de, en, es, fr, it, ja, ko, pt, ru or zh")] = "auto",
+        count: Annotated[int, Field(description="Number of voice variants to choose from (1-16)")] = 4,
+        seed: Annotated[int | None, Field(description="Start seed; variants use seed..seed+count-1")] = None,
+    ) -> dict:
+        """Create a new voice from a text description with Qwen3-TTS VoiceDesign. Each variant is a
+        speech_01_<seed>.wav plus a .txt with its transcript; use a chosen pair as reference_audio and
+        reference_text for speak, or the wav alone for speak_multilingual. Returns a job_id; fetch with
+        fetch_result."""
+        params = {"texts": [text], "voice_description": voice_description, "language": language, "count": count,
+                  "seed": seed}
+        return submitted(adapter.client.submit("qwen-tts", params))
+
+    @mcp.tool()
+    def speak(
+        texts: Annotated[list[str], Field(description="Texts to speak, one wav per text (max 64)")],
+        reference_audio: Annotated[str, Field(description="Local path of a recording of the voice (3-20 s)")],
+        reference_text: Annotated[str | None, Field(description=(
+            "Exact transcript of reference_audio; strongly recommended, without it the voice is less similar"))] = None,
+        language: Annotated[str, Field(description="auto, de, en, es, fr, it, ja, ko, pt, ru or zh")] = "auto",
+        seed: Annotated[int | None, Field(description="Seed for reproducible results")] = None,
+    ) -> dict:
+        """Speak texts with a cloned voice using Qwen3-TTS Base (10 languages, best quality for these).
+        Outputs speech_<NN>_<seed>.wav in the order of texts. For other languages such as Thai use
+        speak_multilingual. Returns a job_id; fetch with fetch_result."""
+        params = {"texts": texts, "reference_audio": reference_audio, "reference_text": reference_text,
+                  "language": language, "seed": seed}
+        return submitted(adapter.client.submit("qwen-tts", params))
+
+    @mcp.tool()
+    def speak_multilingual(
+        texts: Annotated[list[str], Field(description=(
+            "Texts to speak, one wav per text (max 64); outside en/zh/ja write numbers as words"))],
+        language: Annotated[str, Field(description="de, en, es, fr, id, it, ja, ko, ms, pt, ru, th, vi or zh")],
+        reference_audio: Annotated[str, Field(description=(
+            "Local path of a recording of the voice (3-20 s), in any language, e.g. a German voice for Thai text"))],
+        seed: Annotated[int | None, Field(description="Seed for reproducible results")] = None,
+    ) -> dict:
+        """Speak texts with a cloned voice using Confucius4-TTS, also across languages: the reference may speak
+        another language than the texts. Outputs speech_<NN>_<seed>.wav in the order of texts. Returns a
+        job_id; fetch with fetch_result."""
+        params = {"texts": texts, "language": language, "reference_audio": reference_audio, "seed": seed}
+        return submitted(adapter.client.submit("confucius-tts", params))
 
     @mcp.tool()
     def job_status(job_id: str) -> dict:

@@ -1,0 +1,27 @@
+[project]
+name = "gb10-tool-qwen-tts"
+version = "0.1.0"
+description = "Qwen3-TTS 1.7B worker (VoiceDesign and Base voice cloning) for gb10-assets"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    # torchaudio (needed by qwen-tts) has no cu130 wheels after 2.11, so this tool stays on torch 2.11
+    "torch==2.11.0",
+    "torchaudio==2.11.0",
+    # pins transformers 4.57.3 and accelerate 1.12.0
+    "qwen-tts==0.1.1",
+    "soundfile>=0.13",
+]
+
+[tool.uv]
+package = false
+# GB10 only: aarch64, CUDA 13
+environments = ["sys_platform == 'linux' and platform_machine == 'aarch64'"]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu130" }
+torchaudio = { index = "pytorch-cu130" }
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true

@@ -34,7 +34,7 @@ class FakeWorker:
             raise WorkerError("worker exited with code -9")
         if params.get("prompt") == "fail":
             raise JobError("RuntimeError('bad prompt')")
-        (job_dir / "out" / "image_1.png").write_bytes(b"png:" + params["prompt"].encode())
+        (job_dir / "out" / "image_1.png").write_bytes(b"png:" + params.get("prompt", "").encode())
         self.idle_since = time.monotonic()
         return ["image_1.png"]
 

@@ -5,6 +5,9 @@
     gb10-assets health                                server version and queue
     gb10-assets image "prompt" -o DIR [-n 3] [--seed 1] [-W 1024 -H 1024] [-i ref.png]
     gb10-assets edit "instruction" -i in.png [-i in2.png] -o DIR [-n 2] [--seed 1] [-W 1024 -H 768]
+    gb10-assets voice "description" "text" -o DIR [-l de] [-n 4] [--seed 1]
+    gb10-assets speak "text" ["text" ...] -r ref.wav [-t "transcript" | -T ref.txt] -o DIR [-l de]
+    gb10-assets speak-multilingual "text" ["text" ...] -r ref.wav -l th -o DIR
     gb10-assets status JOB | fetch JOB DIR [--wait 600] | log JOB | cancel JOB
 
 Generating commands wait for the result by default (--no-wait: print the job id and return).
@@ -13,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 
 
 def _client():
@@ -69,6 +73,29 @@ def main(argv: list[str] | None = None) -> None:
     ed.add_argument("-W", "--width", type=int, help="default: like the first image, about 1 megapixel")
     ed.add_argument("-H", "--height", type=int)
 
+    vo = sub.add_parser("voice", parents=[gen], help="design a voice from a description (Qwen3-TTS VoiceDesign)")
+    vo.add_argument("description")
+    vo.add_argument("text", help="what the voice says")
+    vo.add_argument("-l", "--language", default="auto")
+    vo.add_argument("-n", "--count", type=int, default=4)
+    vo.add_argument("--seed", type=int)
+
+    sp = sub.add_parser("speak", parents=[gen], help="speak with a cloned voice (Qwen3-TTS Base)")
+    sp.add_argument("texts", nargs="+")
+    sp.add_argument("-r", "--ref", required=True, help="reference recording of the voice")
+    ref_text = sp.add_mutually_exclusive_group()
+    ref_text.add_argument("-t", "--ref-text", help="transcript of the reference")
+    ref_text.add_argument("-T", "--ref-text-file", help="file with the transcript (e.g. the .txt of voice)")
+    sp.add_argument("-l", "--language", default="auto")
+    sp.add_argument("--seed", type=int)
+
+    sm = sub.add_parser("speak-multilingual", parents=[gen],
+                        help="speak with a cloned voice in other languages such as Thai (Confucius4-TTS)")
+    sm.add_argument("texts", nargs="+")
+    sm.add_argument("-r", "--ref", required=True, help="reference recording of the voice, any language")
+    sm.add_argument("-l", "--language", required=True)
+    sm.add_argument("--seed", type=int)
+
     for name in ("status", "log", "cancel"):
         sub.add_parser(name).add_argument("job")
     f = sub.add_parser("fetch", help="download results")
@@ -99,6 +126,16 @@ def main(argv: list[str] | None = None) -> None:
         elif a.cmd == "edit":
             _submit_and_fetch(a, "qwen-image-edit", {"prompt": a.prompt, "images": a.image, "count": a.count,
                                                      "seed": a.seed, "width": a.width, "height": a.height})
+        elif a.cmd == "voice":
+            _submit_and_fetch(a, "qwen-tts", {"texts": [a.text], "voice_description": a.description,
+                                              "language": a.language, "count": a.count, "seed": a.seed})
+        elif a.cmd == "speak":
+            ref_text = Path(a.ref_text_file).read_text().strip() if a.ref_text_file else a.ref_text
+            _submit_and_fetch(a, "qwen-tts", {"texts": a.texts, "reference_audio": a.ref, "reference_text": ref_text,
+                                              "language": a.language, "seed": a.seed})
+        elif a.cmd == "speak-multilingual":
+            _submit_and_fetch(a, "confucius-tts", {"texts": a.texts, "reference_audio": a.ref,
+                                                   "language": a.language, "seed": a.seed})
         elif a.cmd == "status":
             print(_client().status(a.job).model_dump_json(indent=2, exclude_none=True))
         elif a.cmd == "log":
