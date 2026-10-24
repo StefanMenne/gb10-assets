@@ -21,7 +21,7 @@ for their free licenses.
 | Tool | Model | Task | License | Weights | Client |
 |---|---|---|---|---|---|
 | `flux2-klein` | [FLUX.2 \[klein\] 4B](https://huggingface.co/black-forest-labs/FLUX.2-klein-4B) | text to image, optional reference images | Apache-2.0 | ~16 GB | `gb10-assets image` |
-| `qwen-image-edit` | [Qwen-Image-Edit-2511](https://huggingface.co/Qwen/Qwen-Image-Edit-2511) | edit 1-3 images with an instruction | Apache-2.0 | ~58 GB | `gb10-assets edit` |
+| `qwen-image-edit` | [Qwen-Image-Edit-2511](https://huggingface.co/Qwen/Qwen-Image-Edit-2511) with the 4-step [Lightning LoRA](https://huggingface.co/lightx2v/Qwen-Image-Edit-2511-Lightning) | edit 1-3 images with an instruction | Apache-2.0 | ~59 GB | `gb10-assets edit` |
 
 The server keeps one model in memory at a time and switches when a job for another tool arrives.
 
@@ -50,7 +50,7 @@ scripts/docker.sh build
 # 4. start the server (port 8750, restarts automatically after a reboot)
 scripts/docker.sh up
 
-# 5. download the first model (FLUX.2 [klein], about 16 GB); without a name all models (about 74 GB)
+# 5. download the first model (FLUX.2 [klein], about 16 GB); without a name all models (about 75 GB)
 scripts/docker.sh download flux2-klein
 ```
 

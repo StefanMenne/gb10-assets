@@ -90,8 +90,8 @@ def build(adapter: Adapter | None = None) -> MCPServer:
         height: Annotated[int | None, Field(description="Multiple of 16; default keeps the first image's aspect ratio")] = None,
     ) -> dict:
         """Edit images with a text instruction using Qwen-Image-Edit-2511: change objects, text, style or
-        background, keep a character consistent, or combine up to three images. Slower than generate_image
-        (minutes per image). Returns a job_id; fetch with fetch_result."""
+        background, keep a character consistent, or combine up to three images (4-step Lightning version).
+        Returns a job_id; fetch with fetch_result."""
         params = {"prompt": prompt, "images": images, "seed": seed, "count": count, "width": width,
                   "height": height}
         return submitted(adapter.client.submit("qwen-image-edit", params))

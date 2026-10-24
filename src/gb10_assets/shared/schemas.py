@@ -75,18 +75,15 @@ class GenerateImage(JobRequest):
 
 
 class EditImage(JobRequest):
-    """Edit one to three images with a text instruction (Qwen-Image-Edit-2511)."""
+    """Edit one to three images with a text instruction (Qwen-Image-Edit-2511 with the 4-step Lightning LoRA)."""
 
     tool: ClassVar[str] = "qwen-image-edit"
     input_fields: ClassVar[tuple[str, ...]] = ("images",)
 
     prompt: str = Field(min_length=1, max_length=4000)
     images: list[FileName] = Field(min_length=1, max_length=3)
-    negative_prompt: str = Field("", max_length=4000)
     width: Side | None = Field(None, description="Default: aspect ratio of the first image at about 1 megapixel")
     height: Side | None = None
-    steps: int = Field(40, ge=1, le=100)
-    true_cfg_scale: float = Field(4.0, ge=1.0, le=10.0)
     seed: Seed | None = None
     count: Count = 1
 

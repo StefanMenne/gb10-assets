@@ -25,7 +25,7 @@ class ToolSpec:
 
 TOOLS: dict[str, ToolSpec] = {t.name: t for t in (
     ToolSpec("flux2-klein", min_free_gb=30),
-    ToolSpec("qwen-image-edit", min_free_gb=80),  # 58 GB bf16 weights; estimate, not measured yet
+    ToolSpec("qwen-image-edit", min_free_gb=80),  # 58 GB bf16 weights + LoRA; estimate, not measured yet
 )}
 
 

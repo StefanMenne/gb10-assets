@@ -1,7 +1,7 @@
 [project]
 name = "gb10-tool-qwen-image-edit"
 version = "0.1.0"
-description = "Qwen-Image-Edit-2511 worker for gb10-assets"
+description = "Qwen-Image-Edit-2511 worker (with the 4-step Lightning LoRA) for gb10-assets"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "torch==2.14.1",
@@ -10,6 +10,8 @@ dependencies = [
     "diffusers>=0.42,<0.43",
     "transformers>=5.20,<6",
     "accelerate>=1.15",
+    # diffusers needs peft to load the Lightning LoRA
+    "peft>=0.17",
     "safetensors>=0.8",
     "pillow>=11",
 ]
