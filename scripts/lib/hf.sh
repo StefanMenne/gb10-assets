@@ -8,7 +8,7 @@
 # Needs uv on the host (https://docs.astral.sh/uv/): `hf` runs via uvx in a throwaway environment.
 set -euo pipefail
 
-: "${MODELS_DIR:=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/models}"
+source "$(dirname "${BASH_SOURCE[0]}")/config.sh"   # MODELS_DIR
 HF_HUB_VERSION=2.3.0
 
 hf_fetch() {

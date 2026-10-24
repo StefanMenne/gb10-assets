@@ -1,6 +1,14 @@
+# model weights and job results are mounted, never baked into the image
 models/
 jobs/
+# local configuration with secrets
+.env
 .git/
+.github/
 **/.venv/
 **/__pycache__/
+.pytest_cache/
+*.egg-info/
+dist/
+wheels/
 tests/
