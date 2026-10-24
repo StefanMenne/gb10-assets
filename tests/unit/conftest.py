@@ -53,6 +53,11 @@ def _reset_fake():
     FakeWorker.started = []
 
 
+@pytest.fixture(autouse=True)
+def _no_retry_delay(monkeypatch):
+    monkeypatch.setattr("gb10_assets.client.http_client.RETRY_DELAY_S", 0)
+
+
 @pytest.fixture
 def settings(tmp_path):
     return Settings(token=TOKEN, jobs_dir=tmp_path / "jobs", models_dir=tmp_path / "models",

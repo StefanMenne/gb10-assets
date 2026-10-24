@@ -85,6 +85,28 @@ def test_version_mismatch_and_unreachable():
         Client("http://x", TOKEN, transport=httpx.MockTransport(down)).health()
 
 
+def test_get_retried_after_dropped_connection():
+    calls = []
+
+    def flaky(request):
+        calls.append(request.method)
+        if len(calls) < 3:
+            raise httpx.RemoteProtocolError("Server disconnected without sending a response.")
+        return httpx.Response(200, json={"status": "ok", "api_version": 1, "version": "0.1.0"})
+
+    assert Client("http://x", TOKEN, transport=httpx.MockTransport(flaky)).health().status == "ok"
+    assert calls == ["GET"] * 3
+
+    def post_fails(request):
+        calls.append(request.method)
+        raise httpx.RemoteProtocolError("dropped")
+
+    calls.clear()
+    with pytest.raises(ApiError, match="not reachable"):
+        Client("http://x", TOKEN, transport=httpx.MockTransport(post_fails))._call("POST", "/jobs")
+    assert calls == ["POST"]  # never repeated: it could submit the job twice
+
+
 def test_missing_config(monkeypatch):
     monkeypatch.delenv("GB10_ASSETS_URL", raising=False)
     with pytest.raises(ApiError, match="GB10_ASSETS_URL"):

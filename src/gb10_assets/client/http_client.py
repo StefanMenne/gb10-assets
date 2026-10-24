@@ -17,6 +17,9 @@ from pydantic import ValidationError
 from ..shared.schemas import API_VERSION, REQUESTS, Health, JobInfo, JobState
 
 
+GET_RETRIES, RETRY_DELAY_S = 3, 1.0
+
+
 class ApiError(RuntimeError):
     pass
 
@@ -57,10 +60,19 @@ class Client:
         self.http = httpx.Client(base_url=self.url, headers=headers, timeout=timeout, transport=transport)
 
     def _call(self, method: str, path: str, **kw) -> httpx.Response:
-        try:
-            r = self.http.request(method, path, **kw)
-        except httpx.HTTPError as e:
-            raise ApiError(f"server {self.url} not reachable: {e}") from None
+        # GETs are retried: a keep-alive connection the server closes just as the next poll reuses it fails with
+        # "Server disconnected without sending a response" although the server is fine
+        attempts = GET_RETRIES + 1 if method == "GET" else 1
+        for attempt in range(attempts):
+            try:
+                r = self.http.request(method, path, **kw)
+                break
+            except httpx.TransportError as e:
+                if attempt + 1 == attempts:
+                    raise ApiError(f"server {self.url} not reachable: {e}") from None
+                time.sleep(RETRY_DELAY_S)
+            except httpx.HTTPError as e:
+                raise ApiError(f"server {self.url} not reachable: {e}") from None
         if r.status_code >= 400:
             try:
                 detail = r.json().get("detail", r.text)

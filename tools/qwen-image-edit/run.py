@@ -3,7 +3,7 @@
 Weights: $MODELS_DIR/qwen-image-edit/Qwen-Image-Edit-2511 and the 4-step Lightning LoRA in
 $MODELS_DIR/qwen-image-edit/Qwen-Image-Edit-2511-Lightning (download.sh). The LoRA is fused into the
 transformer at load time; settings follow the Qwen-Image-Lightning reference script: 4 steps, CFG 1.0 and a
-scheduler with shift 3. Without width/height the output keeps the aspect ratio of the first image at about one
+scheduler with shift 3 (CFG 1.0: no negative prompt). Without width/height the output keeps the aspect ratio of the first image at about one
 megapixel.
 Outputs: image_<seed>.png per variant, plus sheet.png when count > 1.
 """
@@ -39,6 +39,19 @@ SCHEDULER = {
 }
 
 
+def read_text_encoder(path, dtype):
+    """Qwen2.5-VL text encoder read without mmap. On GB10, moving mmap-loaded weights to the GPU takes ~105 s for
+    these 16.6 GB; reading the files at once and building the model from the state dict takes ~12 s."""
+    from safetensors.torch import load
+    from transformers import AutoConfig, Qwen2_5_VLForConditionalGeneration
+
+    state = {}
+    for f in sorted(path.glob("*.safetensors")):
+        state.update(load(f.read_bytes()))
+    return Qwen2_5_VLForConditionalGeneration.from_pretrained(
+        None, config=AutoConfig.from_pretrained(path), state_dict=state, dtype=dtype)
+
+
 def load():
     import torch
     from diffusers import FlowMatchEulerDiscreteScheduler, QwenImageEditPlusPipeline
@@ -47,12 +60,16 @@ def load():
         if not path.exists():
             raise FileNotFoundError(f"{path} missing, download it on the GB10 system: "
                                     "scripts/docker.sh download qwen-image-edit")
+    # disable_mmap: the same slowdown for the diffusers components (transformer 41 GB: ~45 s instead of minutes)
     pipe = QwenImageEditPlusPipeline.from_pretrained(
-        MODEL, scheduler=FlowMatchEulerDiscreteScheduler.from_config(SCHEDULER), torch_dtype=torch.bfloat16)
+        MODEL, scheduler=FlowMatchEulerDiscreteScheduler.from_config(SCHEDULER),
+        text_encoder=read_text_encoder(MODEL / "text_encoder", torch.bfloat16), dtype=torch.bfloat16,
+        disable_mmap=True).to("cuda")
+    # fuse on the GPU: 1 s instead of 26 s on the CPU
     pipe.load_lora_weights(LORA.parent, weight_name=LORA.name)
     pipe.fuse_lora()
     pipe.unload_lora_weights()
-    return pipe.to("cuda")
+    return pipe
 
 
 def run(pipe, params, job_dir):
@@ -64,7 +81,7 @@ def run(pipe, params, job_dir):
     paths = []
     for seed in seeds(params):
         t = time.time()
-        image = pipe(image=images, prompt=params["prompt"], negative_prompt=" ", true_cfg_scale=CFG,
+        image = pipe(image=images, prompt=params["prompt"], true_cfg_scale=CFG,
                      num_inference_steps=STEPS, generator=torch.Generator("cuda").manual_seed(seed), **kw).images[0]
         path = job_dir / "out" / f"image_{seed}.png"
         image.save(path)
