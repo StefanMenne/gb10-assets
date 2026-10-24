@@ -4,6 +4,7 @@
     gb10-assets server [--host 0.0.0.0] [--port 8750] HTTP server on the GB10 system
     gb10-assets health                                server version and queue
     gb10-assets image "prompt" -o DIR [-n 3] [--seed 1] [-W 1024 -H 1024] [-i ref.png]
+    gb10-assets edit "instruction" -i in.png [-i in2.png] -o DIR [-n 2] [--seed 1] [--steps 40] [--cfg 4]
     gb10-assets status JOB | fetch JOB DIR [--wait 600] | log JOB | cancel JOB
 
 Generating commands wait for the result by default (--no-wait: print the job id and return).
@@ -60,6 +61,17 @@ def main(argv: list[str] | None = None) -> None:
     im.add_argument("-H", "--height", type=int, default=1024)
     im.add_argument("-i", "--image", action="append", default=[], help="reference image (repeatable)")
 
+    ed = sub.add_parser("edit", parents=[gen], help="edit images with an instruction (Qwen-Image-Edit-2511)")
+    ed.add_argument("prompt")
+    ed.add_argument("-i", "--image", action="append", required=True, help="input image (1-3, repeatable)")
+    ed.add_argument("-n", "--count", type=int, default=1)
+    ed.add_argument("--seed", type=int)
+    ed.add_argument("--steps", type=int, default=40)
+    ed.add_argument("--cfg", type=float, default=4.0, help="true CFG scale")
+    ed.add_argument("--negative", default="", help="negative prompt")
+    ed.add_argument("-W", "--width", type=int, help="default: like the first image, about 1 megapixel")
+    ed.add_argument("-H", "--height", type=int)
+
     for name in ("status", "log", "cancel"):
         sub.add_parser(name).add_argument("job")
     f = sub.add_parser("fetch", help="download results")
@@ -87,6 +99,11 @@ def main(argv: list[str] | None = None) -> None:
         elif a.cmd == "image":
             _submit_and_fetch(a, "flux2-klein", {"prompt": a.prompt, "count": a.count, "seed": a.seed,
                                                  "width": a.width, "height": a.height, "reference_images": a.image})
+        elif a.cmd == "edit":
+            _submit_and_fetch(a, "qwen-image-edit", {"prompt": a.prompt, "images": a.image, "count": a.count,
+                                                     "seed": a.seed, "steps": a.steps, "true_cfg_scale": a.cfg,
+                                                     "negative_prompt": a.negative, "width": a.width,
+                                                     "height": a.height})
         elif a.cmd == "status":
             print(_client().status(a.job).model_dump_json(indent=2, exclude_none=True))
         elif a.cmd == "log":

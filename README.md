@@ -16,6 +16,15 @@ A GB10 system generates images, videos, 3D assets for games and more, triggered 
 Clients talk to the server via REST API, MCP or the Claude Code plugin (skills). The models are chosen mainly
 for their free licenses.
 
+## Models
+
+| Tool | Model | Task | License | Weights | Client |
+|---|---|---|---|---|---|
+| `flux2-klein` | [FLUX.2 \[klein\] 4B](https://huggingface.co/black-forest-labs/FLUX.2-klein-4B) | text to image, optional reference images | Apache-2.0 | ~16 GB | `gb10-assets image` |
+| `qwen-image-edit` | [Qwen-Image-Edit-2511](https://huggingface.co/Qwen/Qwen-Image-Edit-2511) | edit 1-3 images with an instruction | Apache-2.0 | ~58 GB | `gb10-assets edit` |
+
+The server keeps one model in memory at a time and switches when a job for another tool arrives.
+
 ## Server installation (GB10)
 
 ### Prerequisites
@@ -41,7 +50,7 @@ scripts/docker.sh build
 # 4. start the server (port 8750, restarts automatically after a reboot)
 scripts/docker.sh up
 
-# 5. download the first model (FLUX.2 [klein], about 16 GB)
+# 5. download the first model (FLUX.2 [klein], about 16 GB); without a name all models (about 74 GB)
 scripts/docker.sh download flux2-klein
 ```
 
@@ -94,6 +103,8 @@ model is loaded first. More options:
 ```sh
 gb10-assets image "isometric pixel art castle" -n 4 --seed 42 -W 1024 -H 768 -o ~/gb10-images   # 4 variants
 gb10-assets image "the same character, waving" -i ref.png -o ~/gb10-images                     # reference image
+gb10-assets edit "replace the background with a beach at sunset" -i photo.png -o ~/gb10-images   # edit an image
+gb10-assets edit "the cat from image 1 sits on the sofa from image 2" -i cat.png -i sofa.png -o ~/gb10-images
 gb10-assets health                                                                             # server state
 gb10-assets log <job-id>                                                                       # log of a failed job
 ```

@@ -132,6 +132,17 @@ def test_mcp_tools_end_to_end(client, tmp_path):
     assert (tmp_path / "image_1.png").read_bytes() == b"png:fox"
 
 
+def test_mcp_edit_image_uploads_inputs(client, tmp_path):
+    src = tmp_path / "in put.png"
+    src.write_bytes(b"img")
+    server = mcp_server.build(mcp_server.Adapter(client))
+    sub = json.loads(call(server, "edit_image", {"prompt": "night", "images": [str(src)]}).content[0].text)
+    info = client.wait(sub["job_id"], 5)
+    assert info.state.value == "done" and info.tool == "qwen-image-edit"
+    with pytest.raises(ApiError, match="input file not found"):
+        client.submit("qwen-image-edit", {"prompt": "x", "images": [str(tmp_path / "missing.png")]})
+
+
 def test_mcp_refuses_to_start_on_mismatch(monkeypatch, capsys):
     def handler(request):
         return httpx.Response(200, json={"status": "ok", "api_version": 999, "version": "9.9.9"})

@@ -80,6 +80,23 @@ def build(adapter: Adapter | None = None) -> MCPServer:
         return submitted(adapter.client.submit("flux2-klein", params))
 
     @mcp.tool()
+    def edit_image(
+        prompt: Annotated[str, Field(description="English edit instruction, e.g. 'replace the background with a "
+                                                 "beach', 'the character from image 1 sits on the chair from image 2'")],
+        images: Annotated[list[str], Field(description="Local paths of the input images (1-3)")],
+        seed: Annotated[int | None, Field(description="Start seed; variants use seed..seed+count-1")] = None,
+        count: Annotated[int, Field(description="Number of variants in this job (1-16); a sheet.png is added if > 1")] = 1,
+        width: Annotated[int | None, Field(description="Multiple of 16; default keeps the first image's aspect ratio")] = None,
+        height: Annotated[int | None, Field(description="Multiple of 16; default keeps the first image's aspect ratio")] = None,
+    ) -> dict:
+        """Edit images with a text instruction using Qwen-Image-Edit-2511: change objects, text, style or
+        background, keep a character consistent, or combine up to three images. Slower than generate_image
+        (minutes per image). Returns a job_id; fetch with fetch_result."""
+        params = {"prompt": prompt, "images": images, "seed": seed, "count": count, "width": width,
+                  "height": height}
+        return submitted(adapter.client.submit("qwen-image-edit", params))
+
+    @mcp.tool()
     def job_status(job_id: str) -> dict:
         """Current state of a job: queued (with queue_position), running, done, failed or cancelled."""
         return adapter.client.status(job_id).model_dump(mode="json", exclude_none=True)

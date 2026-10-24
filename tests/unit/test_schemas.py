@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from gb10_assets.shared.schemas import REQUESTS, GenerateImage, JobState, check_file_name
+from gb10_assets.shared.schemas import REQUESTS, EditImage, GenerateImage, JobState, check_file_name
 
 
 def test_defaults_and_input_files():
@@ -23,6 +23,26 @@ def test_defaults_and_input_files():
 def test_invalid(params):
     with pytest.raises(ValidationError):
         GenerateImage.model_validate(params)
+
+
+def test_edit_defaults_and_input_files():
+    req = EditImage(prompt="make it night", images=["a.png", "b.png"])
+    assert (req.width, req.height, req.steps, req.true_cfg_scale, req.count) == (None, None, 40, 4.0, 1)
+    assert req.input_files() == ["a.png", "b.png"]
+    assert REQUESTS["qwen-image-edit"] is EditImage
+
+
+@pytest.mark.parametrize("params", [
+    {"prompt": "x", "images": []},
+    {"prompt": "x", "images": ["a.png", "b.png", "c.png", "d.png"]},
+    {"prompt": "x"},
+    {"prompt": "x", "images": ["a.png"], "width": 1000},
+    {"prompt": "x", "images": ["a.png"], "true_cfg_scale": 20},
+    {"prompt": "x", "images": ["a.png"], "steps": 0},
+])
+def test_edit_invalid(params):
+    with pytest.raises(ValidationError):
+        EditImage.model_validate(params)
 
 
 @pytest.mark.parametrize("name", ["a/b.png", "..png", ".hidden", "", "x" * 200, "a b.png"])
