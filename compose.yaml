@@ -1,6 +1,5 @@
 # gb10-assets server. Settings come from .env next to this file (copy .env.example or run scripts/docker.sh init).
-#   docker compose up -d           start (builds the image if it is neither local nor pulled)
-#   docker compose pull            fetch the published image instead of building it
+#   docker compose up -d           start (builds the image if it is not there yet)
 services:
   server:
     image: ${GB10_ASSETS_IMAGE:-stefanmenne/gb10-assets}:${GB10_ASSETS_TAG:-latest}

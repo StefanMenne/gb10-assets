@@ -9,7 +9,7 @@ and other GB10 systems.
 
 A GB10 system generates images, videos, 3D assets for games and more, triggered remotely from a client machine.
 
-1. **Server (GB10):** clone this repo, pull or build the Docker image, start the container.
+1. **Server (GB10):** clone this repo, build the Docker image, start the container.
 2. **Server (GB10):** download the weights of the models you want to use with the included scripts.
 3. **Client (your workstation):** install the client, submit jobs and receive the generated assets.
 
@@ -50,9 +50,7 @@ git clone https://github.com/StefanMenne/gb10-assets.git && cd gb10-assets
 # 2. create the configuration .env (with a random token) and the models/ and jobs/ directories
 scripts/docker.sh init                  # or without authentication: scripts/docker.sh init_without_token
 
-# 3. get the image: pull it from Docker Hub ...
-scripts/docker.sh pull
-#    ... or build it yourself (about 10 minutes the first time)
+# 3. build the image (about 10 minutes the first time)
 scripts/docker.sh build
 
 # 4. start the server (port 8750, restarts automatically after a reboot)
@@ -171,7 +169,7 @@ the token. Docker Compose reads it automatically; after editing, run `scripts/do
 | `MODELS_DIR` | `./models` | host directory with the model weights, mounted at `/models` |
 | `JOBS_DIR` | `./jobs` | host directory for job inputs and results, mounted at `/jobs` |
 | `GB10_ASSETS_PORT` | `8750` | host port of the server |
-| `GB10_ASSETS_IMAGE`, `GB10_ASSETS_TAG` | `stefanmenne/gb10-assets`, `latest` | image name for build, push and pull |
+| `GB10_ASSETS_IMAGE`, `GB10_ASSETS_TAG` | `stefanmenne/gb10-assets`, `latest` | name of the built image |
 | `GB10_UID`, `GB10_GID` | your user (`init`) | the container runs as this user, so the files in `MODELS_DIR` and `JOBS_DIR` belong to you |
 | `HF_TOKEN` | empty | Hugging Face token, only needed for gated models |
 | `WORKER_IDLE_S`, `MEMORY_WAIT_S`, `WORKER_READY_S`, `JOB_TTL_H` | see `.env.example` | queue tuning |
@@ -187,31 +185,18 @@ Absolute paths, `~/...` and paths relative to the repo directory work. Compose m
 | `init` | create `.env` with a random token and the `MODELS_DIR`/`JOBS_DIR` directories; asks before overwriting an existing `.env` (backup: `.env.bak`) |
 | `init_without_token` | the same with `GB10_ASSETS_TOKEN=none` (no authentication), after a security confirmation |
 | `build` | build the image, tagged `:latest` and `:<version>` from `pyproject.toml` |
-| `pull` | download the published image instead of building it |
-| `push` | upload both tags to the registry |
 | `download [tool ...]` | download model weights with the image, no uv needed on the host |
 | `up` / `down` / `logs` | start in the background, stop, follow the log |
 
-The script wraps plain Docker Compose: `docker compose build`, `docker compose up -d`, `docker compose pull` and
-so on work too.
+The script wraps plain Docker Compose: `docker compose build`, `docker compose up -d` and so on work too.
 
-## Publishing on Docker Hub
-
-```sh
-docker login                       # Docker Hub account
-# in .env: GB10_ASSETS_IMAGE=<dockerhub-user>/gb10-assets
-scripts/docker.sh build
-scripts/docker.sh push             # pushes :latest and :<version>
-```
-
-Other GB10 systems then use the image without building it: clone the repo (for `compose.yaml` and the scripts),
-run `scripts/docker.sh init`, set the same `GB10_ASSETS_IMAGE`, then `scripts/docker.sh pull` and
-`scripts/docker.sh up`. `GB10_ASSETS_TAG=0.1.0` pins a version.
+The image is meant to be built on each GB10 system, not published: it contains the LTX-2 code of the ltx-video
+tool, which is under the LTX-2.x Community License and may only be redistributed under its conditions.
 
 ## Updating
 
 ```sh
-git pull && scripts/docker.sh build && scripts/docker.sh up    # or: scripts/docker.sh pull && scripts/docker.sh up
+git pull && scripts/docker.sh build && scripts/docker.sh up
 uv tool upgrade gb10-assets                                    # on the client
 ```
 

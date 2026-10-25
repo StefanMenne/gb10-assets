@@ -4,8 +4,6 @@
 #   scripts/docker.sh init                create .env with a random token, create the models/jobs directories
 #   scripts/docker.sh init_without_token  the same, but without authentication (GB10_ASSETS_TOKEN=none)
 #   scripts/docker.sh build               build the image (tags :<GB10_ASSETS_TAG> and :<version>)
-#   scripts/docker.sh push                push both tags (docker login first)
-#   scripts/docker.sh pull                pull the published image instead of building it
 #   scripts/docker.sh up | down | logs    start in the background, stop, follow the server log
 #   scripts/docker.sh download [tool ...] download model weights with the image (no uv needed on the host)
 set -euo pipefail
@@ -78,14 +76,6 @@ case $cmd in
     docker compose build "$@"
     [[ $TAG == "$VERSION" ]] || docker tag "$IMAGE:$TAG" "$IMAGE:$VERSION"
     echo "built $IMAGE:$TAG and $IMAGE:$VERSION"
-    ;;
-  push)
-    docker push "$IMAGE:$TAG"
-    [[ $TAG == "$VERSION" ]] || docker push "$IMAGE:$VERSION"
-    ;;
-  pull)
-    need_env
-    docker compose pull
     ;;
   up)
     need_env; make_dirs
