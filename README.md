@@ -16,6 +16,8 @@ A GB10 system generates images, videos, 3D assets for games and more, triggered 
 Clients talk to the server via REST API, MCP or the Claude Code plugin (skills). The models are chosen mainly
 for their free licenses.
 
+![Architecture: GitHub repository, client with Claude Code plugin and MCP server, GB10 system with Docker container](docs/architecture.png)
+
 ## Models
 
 | Tool | Model | Task | License | Weights | Client |
