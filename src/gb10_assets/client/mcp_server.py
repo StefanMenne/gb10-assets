@@ -23,7 +23,9 @@ to download the results; with wait=0 it returns the current state without blocki
 job at a time and loads the model per job, so request all variants in one call (count) instead of many calls.
 Look at generated images with the Read tool before using them.
 Speech: design_voice creates a voice from a description, speak clones a voice for de/en and 8 more languages,
-speak_multilingual clones a voice into languages such as Thai, even from a reference in another language."""
+speak_multilingual clones a voice into languages such as Thai, even from a reference in another language.
+Video (with sound): generate_video from text and keyframe images, audio_to_video for a given soundtrack,
+retake_video to regenerate a time range of a video. A video job takes minutes; look at the .jpg frames."""
 
 
 class Adapter:
@@ -145,6 +147,67 @@ def build(adapter: Adapter | None = None) -> MCPServer:
         job_id; fetch with fetch_result."""
         params = {"texts": texts, "language": language, "reference_audio": reference_audio, "seed": seed}
         return submitted(adapter.client.submit("confucius-tts", params))
+
+    @mcp.tool()
+    def generate_video(
+        prompt: Annotated[str, Field(description=(
+            "English prompt in flowing sentences: subject, action, camera movement, lighting, sound and spoken "
+            "dialogue in quotes; the video comes with matching audio"))],
+        images: Annotated[list[str] | None, Field(description=(
+            "Local paths of keyframe images (max 4), spread evenly: one image is the first frame (image to "
+            "video), two are first and last frame"))] = None,
+        duration_s: Annotated[float | None, Field(description=(
+            "Length in seconds (1-20); default: predicted from the prompt, 5 s with several images"))] = None,
+        width: Annotated[int | None, Field(description="Multiple of 64, 256-2048; default 1536x1024 or the "
+                                                       "first image's aspect ratio")] = None,
+        height: Annotated[int | None, Field(description="Multiple of 64, 256-2048")] = None,
+        fps: Annotated[int, Field(description="Frame rate, 12-50")] = 24,
+        count: Annotated[int, Field(description="Number of variants in this job (1-8)")] = 1,
+        seed: Annotated[int | None, Field(description="Start seed; variants use seed..seed+count-1")] = None,
+        enhance_prompt: Annotated[bool, Field(description="Expand a short prompt with the text encoder first")] = False,
+    ) -> dict:
+        """Create a video with sound from a text prompt with LTX-2.5, optionally starting from an image or
+        interpolating between keyframe images. Each variant is a video_<seed>.mp4 plus video_<seed>.jpg with four
+        frames to look at. Takes minutes; returns a job_id, fetch with fetch_result."""
+        params = {"prompt": prompt, "images": images or [], "duration_s": duration_s, "width": width,
+                  "height": height, "fps": fps, "count": count, "seed": seed, "enhance_prompt": enhance_prompt}
+        return submitted(adapter.client.submit("ltx-video", params))
+
+    @mcp.tool()
+    def audio_to_video(
+        prompt: Annotated[str, Field(description="English prompt describing the scene, people and camera")],
+        audio: Annotated[str, Field(description="Local path of the speech, song or sound to make the video for")],
+        image: Annotated[str | None, Field(description="Local path of an image to use as the first frame")] = None,
+        duration_s: Annotated[float | None, Field(description="Seconds; default: the audio, max 20")] = None,
+        width: Annotated[int | None, Field(description="Multiple of 64; default 1536x1024 or as the image")] = None,
+        height: Annotated[int | None, Field(description="Multiple of 64")] = None,
+        count: Annotated[int, Field(description="Number of variants in this job (1-8)")] = 1,
+        seed: Annotated[int | None, Field(description="Start seed; variants use seed..seed+count-1")] = None,
+    ) -> dict:
+        """Create a video for a given audio track with LTX-2.5, e.g. a talking or singing person in sync with
+        the audio; the audio is kept unchanged. Outputs video_<seed>.mp4 and .jpg. Returns a job_id."""
+        params = {"prompt": prompt, "audio": audio, "images": [image] if image else [], "duration_s": duration_s,
+                  "width": width, "height": height, "count": count, "seed": seed}
+        return submitted(adapter.client.submit("ltx-video", params))
+
+    @mcp.tool()
+    def retake_video(
+        video: Annotated[str, Field(description="Local path of the video to edit (e.g. a generated one)")],
+        prompt: Annotated[str, Field(description=(
+            "English prompt describing the whole scene as it should be in the time range (setting, people, the new "
+            "action and sound), not only the change; a prompt about the change alone barely alters the video"))],
+        start_s: Annotated[float, Field(description="Start of the time range to regenerate, in seconds")],
+        end_s: Annotated[float, Field(description="End of the time range to regenerate, in seconds")],
+        regenerate: Annotated[str, Field(description="both, video (keeps audio) or audio (keeps picture)")] = "both",
+        count: Annotated[int, Field(description="Number of variants in this job (1-8)")] = 1,
+        seed: Annotated[int | None, Field(description="Start seed; variants use seed..seed+count-1")] = None,
+    ) -> dict:
+        """Regenerate a time range of a video with LTX-2.5 while the rest stays unchanged: fix a bad segment,
+        change what happens or what is said. Videos are cut to 8k+1 frames (max 20 s) and sides to multiples
+        of 32. Outputs video_<seed>.mp4 and .jpg. Returns a job_id."""
+        params = {"video": video, "prompt": prompt, "start_s": start_s, "end_s": end_s, "regenerate": regenerate,
+                  "count": count, "seed": seed}
+        return submitted(adapter.client.submit("ltx-video", params))
 
     @mcp.tool()
     def job_status(job_id: str) -> dict:

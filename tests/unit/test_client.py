@@ -181,6 +181,22 @@ def test_mcp_speech_tools(client, tmp_path):
     assert "invalid parameters" in str(exc.value.__cause__)
 
 
+def test_mcp_video_tools(client, tmp_path):
+    for name in ("first.png", "song.wav", "clip.mp4"):
+        (tmp_path / name).write_bytes(b"x")
+    server = mcp_server.build(mcp_server.Adapter(client))
+    calls = [("generate_video", {"prompt": "fox", "images": [str(tmp_path / "first.png")], "duration_s": 4}),
+             ("audio_to_video", {"prompt": "singer", "audio": str(tmp_path / "song.wav")}),
+             ("retake_video", {"video": str(tmp_path / "clip.mp4"), "prompt": "a cat", "start_s": 1, "end_s": 2})]
+    for name, args in calls:
+        sub = json.loads(call(server, name, args).content[0].text)
+        info = client.wait(sub["job_id"], 5)
+        assert info.state.value == "done" and info.tool == "ltx-video"
+    with pytest.raises(Exception) as exc:
+        call(server, "retake_video", {"video": str(tmp_path / "clip.mp4"), "prompt": "x", "start_s": 2, "end_s": 1})
+    assert "start_s < end_s" in str(exc.value.__cause__)
+
+
 def test_mcp_refuses_to_start_on_mismatch(monkeypatch, capsys):
     def handler(request):
         return httpx.Response(200, json={"status": "ok", "api_version": 999, "version": "9.9.9"})

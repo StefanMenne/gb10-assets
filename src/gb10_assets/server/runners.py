@@ -28,6 +28,7 @@ TOOLS: dict[str, ToolSpec] = {t.name: t for t in (
     ToolSpec("qwen-image-edit", min_free_gb=70),  # measured peak ~63 GB (bf16 weights + LoRA, 1 MP)
     ToolSpec("qwen-tts", min_free_gb=20),  # VoiceDesign + Base, 2 x 4.5 GB bf16; estimate, not measured yet
     ToolSpec("confucius-tts", min_free_gb=16),  # T2S 2.6 GB + w2v-BERT 2.3 GB (fp32) + S2A + BigVGAN; estimate
+    ToolSpec("ltx-video", min_free_gb=85),  # measured peak ~77 GB (all weights resident, 1536x1024, 5 s retake)
 )}
 
 

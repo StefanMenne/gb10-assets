@@ -24,6 +24,10 @@ for their free licenses.
 | `qwen-image-edit` | [Qwen-Image-Edit-2511](https://huggingface.co/Qwen/Qwen-Image-Edit-2511) with the 4-step [Lightning LoRA](https://huggingface.co/lightx2v/Qwen-Image-Edit-2511-Lightning) | edit 1-3 images with an instruction | Apache-2.0 | ~59 GB | `gb10-assets edit` |
 | `qwen-tts` | [Qwen3-TTS 1.7B VoiceDesign](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign) and [Base](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-Base) | speech with a voice designed from a description or cloned from a recording; de, en, es, fr, it, ja, ko, pt, ru, zh | Apache-2.0 | ~9 GB | `gb10-assets voice`, `speak` |
 | `confucius-tts` | [Confucius4-TTS](https://huggingface.co/netease-youdao/Confucius4-TTS) | cross-lingual voice cloning (e.g. a German voice speaking Thai); 14 languages incl. th, vi, id, ms | Apache-2.0 | ~6 GB | `gb10-assets speak-multilingual` |
+| `ltx-video` | [LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5) 22B distilled, NVFP4 | video with sound from text or keyframe images, video for an audio track, retake of a time range | [LTX-2.x Community](https://github.com/Lightricks/LTX-2/blob/main/LICENSE-2_x)¹ | ~50 GB | `gb10-assets video`, `audio-to-video`, `retake` |
+
+¹ Not an open-source license: free, also commercially, for companies under $10M annual revenue; the model is
+gated, so downloading it needs `HF_TOKEN` and the license accepted on its Hugging Face page.
 
 The server keeps one model in memory at a time and switches when a job for another tool arrives.
 
@@ -52,7 +56,8 @@ scripts/docker.sh build
 # 4. start the server (port 8750, restarts automatically after a reboot)
 scripts/docker.sh up
 
-# 5. download the first model (FLUX.2 [klein], about 16 GB); without a name all models (about 75 GB)
+# 5. download the first model (FLUX.2 [klein], about 16 GB); without a name all models (about 140 GB,
+#    ltx-video needs HF_TOKEN in .env, see Model weights)
 scripts/docker.sh download flux2-klein
 ```
 
@@ -110,6 +115,11 @@ gb10-assets edit "the cat from image 1 sits on the sofa from image 2" -i cat.png
 gb10-assets voice "warm female voice, about 40, calm, slow pace" "Hallo, schön dass du da bist." -l de -o ~/gb10-voices
 gb10-assets speak "Willkommen im Spiel!" "Bis bald." -r voice.wav -T voice.txt -l de -o ~/gb10-voices  # cloned voice
 gb10-assets speak-multilingual "สวัสดีครับ ยินดีต้อนรับ" -r voice.wav -l th -o ~/gb10-voices      # German voice, Thai text
+gb10-assets video "a red fox trots through deep snow, the camera follows it, wind howls" -o ~/gb10-videos
+gb10-assets video "the knight turns and walks away" -i knight.png -d 6 -o ~/gb10-videos         # image to video
+gb10-assets video "the flower blooms" -i bud.png -i bloom.png -d 4 -o ~/gb10-videos              # first + last frame
+gb10-assets audio-to-video "a woman sings into a microphone on stage" -a song.wav -i singer.png -o ~/gb10-videos
+gb10-assets retake clip.mp4 "the fox jumps over a log" --start 2 --end 4 -o ~/gb10-videos       # edit a segment
 gb10-assets health                                                                             # server state
 gb10-assets log <job-id>                                                                       # log of a failed job
 ```
@@ -213,7 +223,9 @@ scripts/download-all.sh                 # the same directly on the host (needs u
 ```
 
 Weights go to `MODELS_DIR`: the environment variable, else `MODELS_DIR` in `.env`, else `<repo>/models`.
-Gated models need `HF_TOKEN`.
+Gated models need `HF_TOKEN`: accept the license on the model page (currently only
+[LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5)), create a read token at
+<https://huggingface.co/settings/tokens> and set `HF_TOKEN=...` in `.env`.
 
 ## Development
 
@@ -221,6 +233,7 @@ Gated models need `HF_TOKEN`.
 uv run --frozen --group dev pytest
 ```
 
-Without Docker, the server runs from the repo: `uv sync` in each `tools/<tool>/`, then
+Without Docker, the server runs from the repo: `uv sync` in each `tools/<tool>/` (for `ltx-video` followed by
+`tools/ltx-video/build_kernels.sh`, which compiles the NVFP4 kernels and needs the CUDA toolkit), then
 `GB10_ASSETS_TOKEN=... uv run --extra server gb10-assets server`. It reads its settings from environment
 variables only (not from `.env`); see `src/gb10_assets/server/config.py`.

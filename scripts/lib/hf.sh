@@ -4,7 +4,7 @@
 #
 # Downloads a pinned Hugging Face revision into <dest>. Idempotent: `hf download --local-dir` keeps
 # metadata in <dest>/.cache and skips files that are already complete. Gated models need HF_TOKEN in the
-# environment (never write it into the repo); the license link is printed so it can be accepted first.
+# environment or in <repo>/.env (never commit it); the license link is printed so it can be accepted first.
 # Needs uv on the host (https://docs.astral.sh/uv/): `hf` runs via uvx in a throwaway environment.
 set -euo pipefail
 
@@ -15,6 +15,9 @@ hf_fetch() {
   local repo=$1 rev=$2 dest=$3; shift 3
   if [[ ${1:-} == --gated ]]; then
     local license=$2; shift 2
+    # on the host the token may also live in .env (in the container compose passes it as environment)
+    [[ -n ${HF_TOKEN:-} ]] || HF_TOKEN=$(env_value HF_TOKEN)
+    [[ -z $HF_TOKEN ]] || export HF_TOKEN
     if [[ -z ${HF_TOKEN:-} ]]; then
       echo "ERROR: $repo is gated. Accept the license at $license" >&2
       echo "       then create a read token at https://huggingface.co/settings/tokens and run: HF_TOKEN=... $0" >&2

@@ -135,7 +135,58 @@ class SpeakMultilingual(JobRequest):
     count: SpeechCount = 1
 
 
-REQUESTS: dict[str, type[JobRequest]] = {m.tool: m for m in (GenerateImage, EditImage, Speak, SpeakMultilingual)}
+def _multiple_of_64(v: int) -> int:
+    if v % 64:
+        raise ValueError("must be a multiple of 64")
+    return v
+
+
+VideoSide = Annotated[int, Field(ge=256, le=2048), AfterValidator(_multiple_of_64)]
+
+
+class GenerateVideo(JobRequest):
+    """LTX-2.5 (22B distilled, NVFP4): video with sound from text, keyframe images or an audio track, or a retake
+    of a time range of an existing video. The mode follows from the inputs: ``video`` -> retake, ``audio`` -> audio
+    to video (with an optional first frame in ``images``), otherwise text/images to video."""
+
+    tool: ClassVar[str] = "ltx-video"
+    input_fields: ClassVar[tuple[str, ...]] = ("images", "audio", "video")
+
+    prompt: str = Field(min_length=1, max_length=8000)
+    images: list[FileName] = Field(default_factory=list, max_length=4, description=(
+        "Keyframes spread evenly over the clip: one image is the first frame, two are first and last frame"))
+    audio: FileName | None = Field(None, description="Audio to video: the soundtrack the video is generated for")
+    video: FileName | None = Field(None, description="Retake: video whose time range start_s..end_s is regenerated")
+    start_s: float | None = Field(None, ge=0)
+    end_s: float | None = Field(None, gt=0)
+    regenerate: Literal["both", "video", "audio"] = Field("both", description="Retake: which stream to regenerate")
+    duration_s: float | None = Field(None, ge=1, le=20, description=(
+        "Default: predicted from the prompt (one image or none), 5 s (several images), length of audio (max 20 s)"))
+    width: VideoSide | None = Field(None, description="Default 1536x1024, or the first image's aspect ratio")
+    height: VideoSide | None = None
+    fps: int = Field(24, ge=12, le=50, description="Frame rate; a retake keeps the frame rate of the video")
+    enhance_prompt: bool = Field(False, description="Let the Gemma text encoder expand a short prompt first")
+    seed: Seed | None = None
+    count: Annotated[int, Field(ge=1, le=8, description="Number of variants (seeds seed..seed+count-1)")] = 1
+
+    @model_validator(mode="after")
+    def _one_mode(self):
+        if self.video is not None:
+            if self.images or self.audio is not None:
+                raise ValueError("a retake takes only video, no images or audio")
+            if self.start_s is None or self.end_s is None or self.start_s >= self.end_s:
+                raise ValueError("a retake needs start_s < end_s")
+        elif self.start_s is not None or self.end_s is not None or self.regenerate != "both":
+            raise ValueError("start_s, end_s and regenerate need video")
+        if self.audio is not None and len(self.images) > 1:
+            raise ValueError("audio to video takes at most one image (the first frame)")
+        if (self.width is None) != (self.height is None):
+            raise ValueError("give both width and height or neither")
+        return self
+
+
+REQUESTS: dict[str, type[JobRequest]] = {
+    m.tool: m for m in (GenerateImage, EditImage, Speak, SpeakMultilingual, GenerateVideo)}
 
 
 class SubmitJob(BaseModel):

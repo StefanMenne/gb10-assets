@@ -5,6 +5,7 @@ from gb10_assets.shared.schemas import (
     REQUESTS,
     EditImage,
     GenerateImage,
+    GenerateVideo,
     JobState,
     Speak,
     SpeakMultilingual,
@@ -83,6 +84,37 @@ def test_speak_multilingual():
                    {"texts": ["x"], "language": "auto", "reference_audio": "a.wav"}):
         with pytest.raises(ValidationError):
             SpeakMultilingual.model_validate(params)
+
+
+def test_video_modes():
+    t2v = GenerateVideo(prompt="a fox runs")
+    assert (t2v.width, t2v.duration_s, t2v.fps, t2v.count, t2v.input_files()) == (None, None, 24, 1, [])
+    keyframes = GenerateVideo(prompt="x", images=["a.png", "b.png"], width=1024, height=576, duration_s=6)
+    assert keyframes.input_files() == ["a.png", "b.png"]
+    assert GenerateVideo(prompt="x", audio="song.wav", images=["face.png"]).input_files() == ["face.png", "song.wav"]
+    retake = GenerateVideo(prompt="x", video="in.mp4", start_s=1, end_s=2.5, regenerate="audio")
+    assert retake.input_files() == ["in.mp4"]
+    assert REQUESTS["ltx-video"] is GenerateVideo
+
+
+@pytest.mark.parametrize("params", [
+    {"prompt": ""},
+    {"prompt": "x", "width": 1000, "height": 576},  # not a multiple of 64
+    {"prompt": "x", "width": 1024},  # height missing
+    {"prompt": "x", "duration_s": 30},
+    {"prompt": "x", "count": 9},
+    {"prompt": "x", "images": ["a.png"] * 5},
+    {"prompt": "x", "audio": "a.wav", "images": ["a.png", "b.png"]},
+    {"prompt": "x", "video": "in.mp4"},  # no time range
+    {"prompt": "x", "video": "in.mp4", "start_s": 3, "end_s": 2},
+    {"prompt": "x", "video": "in.mp4", "start_s": 1, "end_s": 2, "images": ["a.png"]},
+    {"prompt": "x", "video": "in.mp4", "start_s": 1, "end_s": 2, "audio": "a.wav"},
+    {"prompt": "x", "start_s": 1, "end_s": 2},  # time range without video
+    {"prompt": "x", "regenerate": "video"},
+])
+def test_video_invalid(params):
+    with pytest.raises(ValidationError):
+        GenerateVideo.model_validate(params)
 
 
 @pytest.mark.parametrize("name", ["a/b.png", "..png", ".hidden", "", "x" * 200, "a b.png"])
