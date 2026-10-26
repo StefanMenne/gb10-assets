@@ -203,8 +203,56 @@ class ImageTo3D(JobRequest):
     count: Annotated[int, Field(ge=1, le=4, description="Number of variants (seeds seed..seed+count-1)")] = 1
 
 
+# tools/blender/scripts/<name>.py (tests check that both agree); usage and options in each script's docstring
+BLENDER_SCRIPTS = {
+    "glb_post": "in.glb out.glb [--height M] [--emission 0.5] [--tex 1024]: stand a generated model on the "
+                "ground, centre and scale it, brighten it for unlit viewers, shrink its textures",
+    "preview": "model.glb out.png [--views 4] [--action Walk --frame 6]: render the model from several sides "
+               "(EEVEE) into one image",
+    "rig_quadruped": "in.glb out.glb --landmarks giraffe|pony|sheep|FILE.json: four-legged rig with animations "
+                     "Idle, Nod, Talk, Walk",
+    "rig_biped": "in.glb out.glb --landmarks elephant|rabbit|FILE.json [--mode walk|hop]: two-legged rig (IK "
+                 "legs) with animations Idle, Walk",
+    "rig_hop": "in.glb out.glb [--yaw 0] [--height 0]: 3-bone hop rig for any figure, animations Idle, Walk",
+    "eye_geo": "in.glb out.glb --eyes eyes.json [--apart R] [--drop R] [--look R]: insert eyes as geometry",
+    "tex_eyes": "in.glb out.glb --style black|white [--save-eyes eyes.json]: find painted eyes in the texture "
+                "and paint them anew",
+    "tex_eyecover": "in.glb out.glb --eyes eyes.json: paint over painted eyes with the surrounding color "
+                    "(before eye_geo)",
+    "tex_adjust": "in.glb out.glb [--recolor R,G,B>R,G,B@radius [--region box]] [--whiten box] [--metal 0]: "
+                  "recolor the texture, also only in a 3D region, remove metal",
+    "tex_hair": "in.glb out.glb --color R,G,B@radius|--dark L [--region box]: paint hair strands into the texture",
+    "talk_video": "rig.blend voice.wav out.mp4 [--mode fast|slow]: video of a rig_quadruped figure speaking "
+                  "the recording (jaw follows the loudness)",
+}
+ScriptArg = Annotated[str, Field(max_length=4000)]
+
+
+class BlenderScript(JobRequest):
+    """Run a Python script in Blender 5.2 (bpy) on input files: one of the bundled scripts or own code. The
+    script runs in a directory with the input files, reads them by name and writes its results there under new
+    names; every new file is returned, print() output goes to the job log."""
+
+    tool: ClassVar[str] = "blender"
+    input_fields: ClassVar[tuple[str, ...]] = ("files",)
+
+    files: list[FileName] = Field(default_factory=list, max_length=32, description="Input files")
+    script: Literal[tuple(BLENDER_SCRIPTS)] | None = Field(None, description="A bundled script")  # type: ignore[valid-type]
+    code: str | None = Field(None, min_length=1, max_length=200_000, description=(
+        "Own Python code instead of a bundled script; the server may disable this (BLENDER_CODE=0)"))
+    args: list[ScriptArg] = Field(default_factory=list, max_length=256, description=(
+        "Command line arguments of the script (sys.argv[1:]); input files by their file name"))
+
+    @model_validator(mode="after")
+    def _script_or_code(self):
+        if (self.script is None) == (self.code is None):
+            raise ValueError("give either script or code")
+        return self
+
+
 REQUESTS: dict[str, type[JobRequest]] = {
-    m.tool: m for m in (GenerateImage, EditImage, Speak, SpeakMultilingual, GenerateVideo, ImageTo3D)}
+    m.tool: m for m in (GenerateImage, EditImage, Speak, SpeakMultilingual, GenerateVideo, ImageTo3D,
+                        BlenderScript)}
 
 
 class SubmitJob(BaseModel):

@@ -9,9 +9,11 @@ services:
     user: "${GB10_UID:-1000}:${GB10_GID:-1000}"
     ports:
       - "${GB10_ASSETS_PORT:-8750}:8750"
+    # no HF_TOKEN: only `scripts/docker.sh install|update` hand it to their container, so that code run by a
+    # job (the blender tool) cannot read it in the server's
     environment:
       GB10_ASSETS_TOKEN: ${GB10_ASSETS_TOKEN:?set GB10_ASSETS_TOKEN in .env (scripts/docker.sh init creates one)}
-      HF_TOKEN: ${HF_TOKEN:-}
+      BLENDER_CODE: ${BLENDER_CODE:-1}
       WORKER_IDLE_S: ${WORKER_IDLE_S:-0}
       MEMORY_WAIT_S: ${MEMORY_WAIT_S:-600}
       WORKER_READY_S: ${WORKER_READY_S:-1800}

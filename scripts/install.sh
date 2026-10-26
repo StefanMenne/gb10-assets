@@ -64,7 +64,9 @@ esac
 failed=()
 for t in "${tools[@]}"; do
   echo "=== $t"
-  install_tool "$t" || failed+=("$t")
+  # a subshell, not `install_tool || ...`: bash ignores set -e in functions called from a condition
+  set +e; (set -e; install_tool "$t"); rc=$?; set -e
+  [[ $rc -eq 0 ]] || failed+=("$t")
 done
 if [[ ${#failed[@]} -gt 0 ]]; then echo "FAILED: ${failed[*]}" >&2; exit 1; fi
 echo "installed in $INSTALL_DIR: ${tools[*]}"

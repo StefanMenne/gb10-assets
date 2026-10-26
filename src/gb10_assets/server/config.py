@@ -20,6 +20,7 @@ class Settings:
     memory_wait_s: float = 600.0     # wait this long for enough free memory before failing a job
     worker_ready_s: float = 1800.0   # max model loading time
     job_ttl_h: float = 24.0          # finished jobs are deleted after this time if not fetched
+    blender_code: bool = True        # blender tool: also run own code, not only the bundled scripts
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -38,4 +39,5 @@ class Settings:
             memory_wait_s=float(os.environ.get("MEMORY_WAIT_S", 600)),
             worker_ready_s=float(os.environ.get("WORKER_READY_S", 1800)),
             job_ttl_h=float(os.environ.get("JOB_TTL_H", 24)),
+            blender_code=os.environ.get("BLENDER_CODE", "1").strip().lower() not in ("0", "false", "no", "off"),
         )

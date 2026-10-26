@@ -21,7 +21,7 @@ from fastapi.responses import FileResponse, PlainTextResponse
 from pydantic import ValidationError
 
 from .. import __version__
-from ..shared.schemas import REQUESTS, Health, JobInfo, SubmitJob, check_file_name
+from ..shared.schemas import REQUESTS, BlenderScript, Health, JobInfo, SubmitJob, check_file_name
 from .config import Settings
 from .queue import JobQueue
 from .runners import TOOLS, install_problem
@@ -77,6 +77,9 @@ def create_app(settings: Settings, queue: JobQueue | None = None) -> FastAPI:
             raise HTTPException(422, e.errors(include_url=False, include_context=False)) from None
         except ValueError as e:
             raise HTTPException(422, str(e)) from None
+        if isinstance(params, BlenderScript) and params.code is not None and not settings.blender_code:
+            raise HTTPException(403, "own Blender code is disabled on this server (BLENDER_CODE=0), "
+                                     "only the bundled scripts run")
         missing = set(params.input_files()) - set(names)
         if missing:
             raise HTTPException(422, f"input files referenced but not uploaded: {sorted(missing)}")
@@ -132,5 +135,7 @@ def serve(host: str = "0.0.0.0", port: int = 8750) -> None:
     settings = Settings.from_env()
     if settings.token is None:
         print("WARNING: GB10_ASSETS_TOKEN=none, authentication is disabled: everyone who can reach "
-              f"port {port} can submit, read and delete jobs", file=sys.stderr)
+              f"port {port} can submit, read and delete jobs"
+              + (", and run own code in Blender (BLENDER_CODE=0 turns that off)" if settings.blender_code else ""),
+              file=sys.stderr)
     uvicorn.run(create_app(settings), host=host, port=port)

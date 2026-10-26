@@ -205,6 +205,22 @@ def test_mcp_image_to_3d(client, tmp_path):
     assert info.state.value == "done" and info.tool == "pixal3d"
 
 
+def test_mcp_blender_maps_input_paths_in_args(client, tmp_path):
+    (tmp_path / "my fox.glb").write_bytes(b"x")
+    local = str(tmp_path / "my fox.glb")
+    server = mcp_server.build(mcp_server.Adapter(client))
+    sub = json.loads(call(server, "blender", {"files": [local], "script": "rig_hop",
+                                              "args": [local, "fox_rig.glb", "--height", "1"]}).content[0].text)
+    res = json.loads(call(server, "fetch_result", {"job_id": sub["job_id"], "target_dir": str(tmp_path / "out"),
+                                                   "wait": 5}).content[0].text)
+    assert FakeWorker.last_params["args"] == ["my_fox.glb", "fox_rig.glb", "--height", "1"]
+    assert FakeWorker.last_params["files"] == ["my_fox.glb"]
+    assert res["state"] == "done" and len(res["files"]) == 1
+    assert any("starting blender worker" in line for line in res["log"])
+    with pytest.raises(ApiError, match="404"):                   # deleted after the log was read
+        client.status(sub["job_id"])
+
+
 def test_mcp_refuses_to_start_on_mismatch(monkeypatch, capsys):
     def handler(request):
         return httpx.Response(200, json={"status": "ok", "api_version": 999, "version": "9.9.9"})

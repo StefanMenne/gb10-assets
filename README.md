@@ -27,8 +27,8 @@ for their free licenses.
 | `qwen-tts` | [Qwen3-TTS 1.7B VoiceDesign](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign) and [Base](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-Base) | speech with a voice designed from a description or cloned from a recording; de, en, es, fr, it, ja, ko, pt, ru, zh | Apache-2.0 | ~9 GB | `gb10-assets voice`, `speak` |
 | `confucius-tts` | [Confucius4-TTS](https://huggingface.co/netease-youdao/Confucius4-TTS) | cross-lingual voice cloning (e.g. a German voice speaking Thai); 14 languages incl. th, vi, id, ms | Apache-2.0 | ~6 GB | `gb10-assets speak-multilingual` |
 | `ltx-video` | [LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5) 22B distilled, NVFP4 | video with sound from text or keyframe images, video for an audio track, retake of a time range | [LTX-2.x Community](https://github.com/Lightricks/LTX-2/blob/main/LICENSE-2_x)¹ | ~50 GB | `gb10-assets video`, `audio-to-video`, `retake` |
-
 | `pixal3d` | [Pixal3D](https://huggingface.co/Comfy-Org/Pixal3D) (on TRELLIS.2), run by [ComfyUI](https://github.com/Comfy-Org/ComfyUI) | one image to a textured 3D model: GLB with PBR maps (base color, metallic, roughness, normal, occlusion) | MIT² | ~9 GB | `gb10-assets 3d` |
+| `blender` | [Blender](https://www.blender.org) 5.2 as a Python module (bpy), Cycles and EEVEE on the GPU | Python scripts on 3D models: bundled ones for rigging and animating figures, texture and eye fixes, previews and videos of talking figures, or own code | GPL-3.0³ | none (1.9 GB installed) | `gb10-assets blender` |
 
 ¹ Not an open-source license: free, also commercially, for companies under $10M annual revenue; the model is
 gated, so downloading it needs `HF_TOKEN` and the license accepted on its Hugging Face page.
@@ -38,6 +38,10 @@ gated, so downloading it needs `HF_TOKEN` and the license accepted on its Huggin
 downloaded at installation and runs as a separate process; its native 3D nodes need none of the
 non-commercial NVIDIA libraries (nvdiffrast, nvdiffrec) of the original TRELLIS.2 code.
 
+³ There is no bpy for Linux ARM64 on PyPI: the first installation builds Blender from source (about 15 minutes
+and 10 GB of temporary space; later installations reuse the built wheel). It runs in its own worker process.
+Jobs of this tool may run their own Python code, see [Blender code](#blender-code).
+
 The server keeps one model in memory at a time and switches when a job for another tool arrives.
 
 ## Server installation (GB10)
@@ -45,7 +49,7 @@ The server keeps one model in memory at a time and switches when a job for anoth
 ### Prerequisites
 
 Docker with the Compose plugin and the NVIDIA Container Toolkit (both preinstalled on DGX OS). The image is
-built for `linux/arm64` with CUDA 13 and contains the server and the tool definitions (about 1 GB). The tools
+built for `linux/arm64` with CUDA 13 and contains the server and the tool definitions (about 1.2 GB). The tools
 themselves, each with its own Python environment and model weights, are installed one by one into a host
 directory that is mounted into the container (see [Tools](#tools)).
 
@@ -130,6 +134,10 @@ gb10-assets audio-to-video "a woman sings into a microphone on stage" -a song.wa
 gb10-assets retake clip.mp4 "the fox jumps over a log" --start 2 --end 4 -o ~/gb10-videos       # edit a segment
 gb10-assets 3d chair.png -o ~/gb10-3d                                                          # image to GLB
 gb10-assets 3d chair.png --resolution 1024 --faces 50000 --texture 2048 -o ~/gb10-3d          # faster, game-ready
+gb10-assets blender fox.glb --script rig_hop -o ~/gb10-3d -- fox.glb fox_rigged.glb               # animated GLB
+gb10-assets blender fox_rigged.glb --script preview -o ~/gb10-3d -- fox_rigged.glb fox.png --action Walk
+gb10-assets blender model.glb --code measure.py -o ~/gb10-3d -- model.glb                       # own bpy script
+gb10-assets blender --list                                                                     # bundled scripts
 gb10-assets health                                                                             # server state
 gb10-assets log <job-id>                                                                       # log of a failed job
 ```
@@ -168,6 +176,18 @@ after a security confirmation) turns the check off: the server accepts every req
 logs a warning at startup. Clients then need only `GB10_ASSETS_URL`. Use this only in a trusted network and never
 forward the port to the internet.
 
+### Blender code
+
+The `blender` tool runs Python code sent with a job (`--code`, MCP `code`). That code runs in the container, as
+`GB10_UID`, with the GPU, network access and write access to `INSTALL_DIR` and `JOBS_DIR`; it cannot reach the
+rest of the host. So whoever has the token can run code there, not only call models. Two settings limit this:
+
+- `HF_TOKEN` never reaches the running server: only `scripts/docker.sh install|update` hand it to their own
+  short-lived container, so job code cannot read it.
+- `BLENDER_CODE=0` in `.env` allows only the bundled scripts (`--script`, fixed code that takes arguments);
+  own code is refused with `403`. Use it whenever devices you do not trust can reach the server, and always with
+  `GB10_ASSETS_TOKEN=none`.
+
 ## Configuration (`.env`)
 
 `scripts/docker.sh init` copies [`.env.example`](.env.example) to `.env`. `.env` is not committed because it holds
@@ -181,7 +201,8 @@ the token. Docker Compose reads it automatically; after editing, run `scripts/do
 | `GB10_ASSETS_PORT` | `8750` | host port of the server |
 | `GB10_ASSETS_IMAGE`, `GB10_ASSETS_TAG` | `stefanmenne/gb10-assets`, `latest` | name of the built image |
 | `GB10_UID`, `GB10_GID` | your user (`init`) | the container runs as this user, so the files in `INSTALL_DIR` and `JOBS_DIR` belong to you |
-| `HF_TOKEN` | empty | Hugging Face token, only needed for gated models |
+| `HF_TOKEN` | empty | Hugging Face token, only needed for gated models; used by `install`/`update` only |
+| `BLENDER_CODE` | `1` | `0`: the `blender` tool runs only its bundled scripts, no code sent with a job ([Blender code](#blender-code)) |
 | `WORKER_IDLE_S`, `MEMORY_WAIT_S`, `WORKER_READY_S`, `JOB_TTL_H` | see `.env.example` | queue tuning |
 
 **Tools in another directory**, for example on a second disk: set `INSTALL_DIR=/data/gb10-tools` in `.env`.
@@ -240,10 +261,14 @@ installed/
 │   ├── env/           Python environment (uv sync of tools/flux2-klein)
 │   ├── weights/       model weights (tools/flux2-klein/download.sh)
 │   └── .installed     fingerprint of the tool definition this installation matches
-└── ltx-video/
+├── ltx-video/
+│   ├── env/
+│   ├── build/         compiled NVFP4 kernels (tools/ltx-video/post_install.sh), reused by reinstallations
+│   └── weights/
+└── blender/
     ├── env/
-    ├── build/         compiled NVFP4 kernels (tools/ltx-video/post_install.sh), reused by reinstallations
-    └── weights/
+    └── build/         the bpy wheel built from source (tools/blender/post_install.sh); while it is being
+                       built also the sources, which stay after a failed build so that a retry continues
 ```
 
 Installing is idempotent: running it again only fetches what is missing or changed. While a worker of the tool
@@ -261,5 +286,5 @@ uv run --frozen --group dev pytest
 ```
 
 Without Docker, the server runs from the repo: `scripts/install.sh <tool>` (needs uv, gcc and g++; `ltx-video`
-also git), then `GB10_ASSETS_TOKEN=... uv run --extra server gb10-assets server`. It reads its settings from environment
+also git; `blender` also gcc-14, git-lfs and the EGL headers, see the Dockerfile), then `GB10_ASSETS_TOKEN=... uv run --extra server gb10-assets server`. It reads its settings from environment
 variables only (not from `.env`); see `src/gb10_assets/server/config.py`.

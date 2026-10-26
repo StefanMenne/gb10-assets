@@ -1,8 +1,11 @@
 import pytest
 from pydantic import ValidationError
 
+from gb10_assets.server.config import REPO_ROOT
 from gb10_assets.shared.schemas import (
+    BLENDER_SCRIPTS,
     REQUESTS,
+    BlenderScript,
     EditImage,
     GenerateImage,
     GenerateVideo,
@@ -135,6 +138,31 @@ def test_image_to_3d():
 def test_image_to_3d_invalid(params):
     with pytest.raises(ValidationError):
         ImageTo3D.model_validate(params)
+
+
+def test_blender_script():
+    r = BlenderScript(script="rig_hop", files=["fox.glb"], args=["fox.glb", "fox_rig.glb"])
+    assert r.input_files() == ["fox.glb"] and REQUESTS["blender"] is BlenderScript
+    assert BlenderScript(code="import bpy").args == []
+
+
+@pytest.mark.parametrize("params", [
+    {},
+    {"script": "rig_hop", "code": "print(1)"},
+    {"script": "no_such_script"},
+    {"code": ""},
+    {"script": "rig_hop", "files": ["../x.glb"]},
+    {"script": "rig_hop", "args": ["x" * 4001]},
+])
+def test_blender_script_invalid(params):
+    with pytest.raises(ValidationError):
+        BlenderScript.model_validate(params)
+
+
+def test_blender_scripts_match_the_tool():
+    """BLENDER_SCRIPTS lists exactly the runnable scripts in tools/blender/scripts (texlib is a module)."""
+    scripts = {p.stem for p in (REPO_ROOT / "tools" / "blender" / "scripts").glob("*.py")} - {"texlib"}
+    assert scripts == set(BLENDER_SCRIPTS)
 
 
 @pytest.mark.parametrize("name", ["a/b.png", "..png", ".hidden", "", "x" * 200, "a b.png"])

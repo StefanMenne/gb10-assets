@@ -1,0 +1,25 @@
+[project]
+name = "gb10-tool-blender"
+version = "0.1.0"
+description = "Blender (bpy) worker for gb10-assets: rigging, animation and GLB export of 3D models"
+# bpy 5.2 is built for CPython 3.13 only
+requires-python = ">=3.13,<3.14"
+# bpy itself is not on PyPI for aarch64: post_install.sh builds it from source and installs it with --no-deps.
+dependencies = [
+    # requirements of bpy (make_bpy_wheel.py at BLENDER_REV)
+    "cattrs",
+    "cython",
+    "numpy>=2.2,<3",
+    "requests",
+    "zstandard",
+    # scripts/: texture tools (trimesh, Pillow), the MP4 of talk_video (a static ffmpeg); scipy for own code
+    "trimesh",
+    "pillow",
+    "imageio-ffmpeg",
+    "scipy",
+]
+
+[tool.uv]
+package = false
+# GB10 only: aarch64, CUDA 13
+environments = ["sys_platform == 'linux' and platform_machine == 'aarch64'"]

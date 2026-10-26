@@ -95,6 +95,26 @@ def test_rejects_tool_not_installed(api, monkeypatch):
     assert r.status_code == 409 and "scripts/docker.sh install flux2-klein" in r.text
 
 
+@pytest.mark.parametrize("allowed", [True, False])
+def test_blender_code_can_be_disabled(settings, allowed):
+    settings.blender_code = allowed
+    with TestClient(create_app(settings, make_queue(settings))) as client:
+        code = submit(client, {"code": "print(1)"}, tool="blender")
+        script = submit(client, {"script": "rig_hop", "args": ["a.glb", "b.glb"]}, tool="blender")
+    assert code.status_code == (201 if allowed else 403) and script.status_code == 201
+    assert allowed or "BLENDER_CODE=0" in code.text
+
+
+@pytest.mark.parametrize("value, allowed", [(None, True), ("1", True), ("0", False), ("false", False)])
+def test_blender_code_setting(monkeypatch, value, allowed):
+    monkeypatch.setenv("GB10_ASSETS_TOKEN", TOKEN)
+    if value is None:
+        monkeypatch.delenv("BLENDER_CODE", raising=False)
+    else:
+        monkeypatch.setenv("BLENDER_CODE", value)
+    assert Settings.from_env().blender_code is allowed
+
+
 def test_failed_job_reports_error(api):
     job_id = submit(api, {"prompt": "fail"}).json()["id"]
     wait_for(lambda: api.get(f"/jobs/{job_id}", headers=AUTH).json()["state"] == "failed")

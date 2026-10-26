@@ -94,23 +94,28 @@ class Client:
         return h
 
     def submit(self, tool: str, params: dict) -> JobInfo:
-        """Submit a job. Input fields of the tool's request model hold local paths; they are uploaded."""
+        """Submit a job. Input fields of the tool's request model hold local paths; they are uploaded. Script
+        arguments (``args``, blender) equal to one of these paths are replaced by its uploaded file name."""
         model = REQUESTS.get(tool)
         if model is None:
             raise ApiError(f"unknown tool {tool!r}")
-        params, uploads, taken = dict(params), [], set()
+        params, uploads, taken, renamed = dict(params), [], set(), {}
         for field in model.input_fields:
             value = params.get(field)
             if value is None:
                 continue
-            paths = [Path(p).expanduser() for p in (value if isinstance(value, list) else [value])]
+            given = value if isinstance(value, list) else [value]
             names = []
-            for p in paths:
+            for raw in given:
+                p = Path(raw).expanduser()
                 if not p.is_file():
                     raise ApiError(f"input file not found: {p}")
                 names.append(upload_name(p, taken))
                 uploads.append((p, names[-1]))
+                renamed[str(raw)] = names[-1]
             params[field] = names if isinstance(value, list) else names[0]
+        if isinstance(params.get("args"), list):
+            params["args"] = [renamed.get(arg, arg) for arg in params["args"]]
         try:
             req = model.model_validate(params)
         except ValidationError as e:

@@ -12,10 +12,11 @@ from mcp.server.mcpserver import MCPServer
 from pydantic import Field
 
 from .. import __version__
-from ..shared.schemas import JobInfo
+from ..shared.schemas import BLENDER_SCRIPTS, JobInfo
 from .http_client import ApiError, Client, VersionMismatch
 
 MAX_WAIT_S = 600
+LOG_LINES = 60  # blender: end of the job log returned with the files (the script's print output)
 
 INSTRUCTIONS = """Generates media assets on a self-hosted NVIDIA GB10 server.
 Generating tools only queue a job and return a job_id. Then call fetch_result(job_id, target_dir, wait=...)
@@ -26,7 +27,33 @@ Speech: design_voice creates a voice from a description, speak clones a voice fo
 speak_multilingual clones a voice into languages such as Thai, even from a reference in another language.
 Video (with sound): generate_video from text and keyframe images, audio_to_video for a given soundtrack,
 retake_video to regenerate a time range of a video. A video job takes minutes; look at the .jpg frames.
-3D: image_to_3d turns one image of an object into a textured GLB (several minutes); look at the .png render."""
+3D: image_to_3d turns one image of an object into a textured GLB (several minutes); look at the .png render.
+Blender: blender runs bundled scripts or own bpy code on files (rigging, animation, texture fixes, renders)."""
+
+BLENDER_DESCRIPTION = """Run a Python script in Blender 5.2 (bpy, headless, GPU: Cycles on CUDA, EEVEE) on the server.
+Give either `script` (bundled, below) or `code` (own Python), plus `args` like a command line (sys.argv[1:]) and
+the input `files`. The script runs in a directory holding the input files under their names (refer to inputs in
+args by the local path or the file name) and writes its results there under NEW names; all new files are
+returned. print() output is in the job log (log_tail). Usage of a bundled script: in its line below; it fails
+with its usage text on wrong arguments.
+
+Bundled scripts:
+{scripts}
+
+Animated game figures: image_to_3d (max_faces 10000-50000) -> glb_post -> optionally tex_adjust (generated
+textures are oversaturated, sometimes all metal: --metal 0; backs are invented: --whiten), tex_eyes/eye_geo ->
+rig_quadruped / rig_biped / rig_hop -> preview with --action Walk --frame N to check poses. Look at every
+preview with the Read tool. Conventions: Blender Z up and front = -Y; glTF Y up and front = +Z; the rigs expect
+glb_post output (bottom at z=0, looking to -Y; --yaw turns it). The rig landmarks are fractions of the bounding
+box; for a new animal measure it first with own code (vertices in z/y slices: legs = clusters near the ground,
+head at the front), write a template with --dump-landmarks out.json, adapt it and pass it as an input file.
+rig_hop needs no landmarks and works for any shape. talk_video needs the --save-blend file of rig_quadruped.
+
+Own code: bpy, bmesh, mathutils, numpy, scipy, trimesh, PIL and the bundled modules (import texlib) are
+available; Blender starts from an empty scene. For Cycles on the GPU set
+bpy.context.preferences.addons["cycles"].preferences.compute_device_type = "CUDA", call get_devices(), enable
+the devices and set scene.cycles.device = "GPU". The server may disable own code (BLENDER_CODE=0, 403).
+Returns a job_id; fetch with fetch_result."""
 
 
 class Adapter:
@@ -229,6 +256,18 @@ def build(adapter: Adapter | None = None) -> MCPServer:
                   "max_faces": max_faces, "texture_size": texture_size, "count": count, "seed": seed}
         return submitted(adapter.client.submit("pixal3d", params))
 
+    @mcp.tool(description=BLENDER_DESCRIPTION.format(
+        scripts="\n".join(f"- {name} {usage}" for name, usage in BLENDER_SCRIPTS.items())))
+    def blender(
+        files: Annotated[list[str] | None, Field(description="Local paths of the input files (max 32)")] = None,
+        script: Annotated[str | None, Field(description="Name of a bundled script")] = None,
+        code: Annotated[str | None, Field(description="Own Python code instead of a bundled script")] = None,
+        args: Annotated[list[str] | None, Field(description=(
+            "Arguments of the script, e.g. ['figure.glb', 'figure_rigged.glb', '--landmarks', 'rabbit']"))] = None,
+    ) -> dict:
+        params = {"files": files or [], "script": script, "code": code, "args": args or []}
+        return submitted(adapter.client.submit("blender", params))
+
     @mcp.tool()
     def job_status(job_id: str) -> dict:
         """Current state of a job: queued (with queue_position), running, done, failed or cancelled."""
@@ -243,12 +282,17 @@ def build(adapter: Adapter | None = None) -> MCPServer:
     ) -> dict:
         """Download the results of a finished job into target_dir and delete the job on the server.
         Existing files are not overwritten (a suffix _1, _2 ... is added). If the job is not done yet, returns
-        its state; call again later."""
-        info, paths = adapter.client.fetch(job_id, target_dir, wait=max(0, min(wait, MAX_WAIT_S)))
+        its state; call again later. Blender jobs also return the end of their log (the script's output)."""
+        client = adapter.client
+        info, paths = client.fetch(job_id, target_dir, wait=max(0, min(wait, MAX_WAIT_S)), delete=False)
         if not paths:
             return {"job_id": job_id, "state": info.state.value, "queue_position": info.queue_position,
                     "files": [], "hint": "not finished yet; call fetch_result again with wait > 0"}
-        return {"job_id": job_id, "state": info.state.value, "files": [str(p.resolve()) for p in paths]}
+        result = {"job_id": job_id, "state": info.state.value, "files": [str(p.resolve()) for p in paths]}
+        if info.tool == "blender":
+            result["log"] = client.log(job_id).splitlines()[-LOG_LINES:]
+        client.delete(job_id)
+        return result
 
     @mcp.tool()
     def cancel_job(job_id: str) -> dict:

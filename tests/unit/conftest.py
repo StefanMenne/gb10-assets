@@ -13,6 +13,7 @@ class FakeWorker:
     """In-process stand-in for runners.Worker: writes one output file per job."""
 
     started: list[str] = []
+    last_params: dict | None = None
 
     def __init__(self, spec, settings, fail_load=False, job_seconds=0.0):
         self.spec, self.tool = spec, spec.name
@@ -30,6 +31,7 @@ class FakeWorker:
             raise WorkerError("loading failed: boom")
 
     def run(self, job_dir, params):
+        FakeWorker.last_params = params
         if self.killed.wait(self.job_seconds):
             raise WorkerError("worker exited with code -9")
         if params.get("prompt") == "fail":

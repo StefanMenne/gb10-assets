@@ -94,8 +94,9 @@ case $cmd in
     need_env; make_dirs
     [[ $cmd == install ]] || set -- --outdated
     [[ $# -gt 0 ]] || { echo "usage: $0 install TOOL ... | --all   (tools: $0 list)" >&2; exit 1; }
-    # with the GPU like the server: compiling CUDA extensions (ltx-video) links the driver's libcuda
-    docker compose run --rm --no-deps server scripts/install.sh "$@"
+    # with the GPU like the server: compiling CUDA extensions (ltx-video) links the driver's libcuda. HF_TOKEN
+    # (gated models) only goes to this container, the server's does not get it (compose.yaml)
+    HF_TOKEN=${HF_TOKEN:-$(env_value HF_TOKEN)} docker compose run --rm --no-deps -e HF_TOKEN server scripts/install.sh "$@"
     ;;
   uninstall)
     [[ $# -gt 0 ]] || { echo "usage: $0 uninstall TOOL ..." >&2; exit 1; }

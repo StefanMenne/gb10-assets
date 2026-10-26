@@ -12,6 +12,7 @@
     gb10-assets audio-to-video "prompt" -a song.wav -o DIR [-i first.png] [-d 10]
     gb10-assets retake in.mp4 "prompt" --start 2 --end 4 -o DIR [--regenerate video|audio]
     gb10-assets 3d object.png -o DIR [--resolution 1024] [--faces 50000] [--texture 2048] [--keep-background]
+    gb10-assets blender [FILE ...] (--script NAME | --code FILE.py) -o DIR [-- ARGS ...]   (--list: the scripts)
     gb10-assets status JOB | fetch JOB DIR [--wait 600] | log JOB | cancel JOB
 
 Generating commands wait for the result by default (--no-wait: print the job id and return).
@@ -39,14 +40,23 @@ def _submit_and_fetch(args, tool: str, params: dict) -> None:
     if args.no_wait:
         print(info.id)
         return
-    _, paths = c.fetch(info.id, args.out, wait=args.timeout)
+    _, paths = c.fetch(info.id, args.out, wait=args.timeout, delete=False)
     if not paths:
         sys.exit(f"job {info.id} not finished after {args.timeout}s; later: gb10-assets fetch {info.id} {args.out}")
+    if tool == "blender":  # the script's output
+        print(c.log(info.id), end="", file=sys.stderr)
+    c.delete(info.id)
     for p in paths:
         print(p)
 
 
 def main(argv: list[str] | None = None) -> None:
+    argv = sys.argv[1:] if argv is None else list(argv)
+    script_args: list[str] = []  # blender: everything after -- goes to the script
+    if argv[:1] == ["blender"] and "--" in argv:
+        i = argv.index("--")
+        argv, script_args = argv[:i], argv[i + 1:]
+
     p = argparse.ArgumentParser(prog="gb10-assets", description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -140,6 +150,17 @@ def main(argv: list[str] | None = None) -> None:
     d3.add_argument("-n", "--count", type=int, default=1)
     d3.add_argument("--seed", type=int)
 
+    bl = sub.add_parser("blender", parents=[gen], help="run a Blender script on files (bundled script or own code)",
+                        usage="gb10-assets blender [FILE ...] (--script NAME | --code FILE.py) [-o DIR] [--no-wait] "
+                              "[-- ARGS ...]",
+                        description="Arguments after -- go to the script; local paths of FILEs among them are "
+                                    "replaced by the file names on the server. The script writes its results "
+                                    "into its working directory.")
+    bl.add_argument("files", nargs="*", help="input files")
+    bl.add_argument("--script", help="bundled script (--list)")
+    bl.add_argument("--code", help="local Python file to run instead")
+    bl.add_argument("--list", action="store_true", help="list the bundled scripts")
+
     for name in ("status", "log", "cancel"):
         sub.add_parser(name).add_argument("job")
     f = sub.add_parser("fetch", help="download results")
@@ -147,6 +168,14 @@ def main(argv: list[str] | None = None) -> None:
     f.add_argument("out")
     f.add_argument("--wait", type=float, default=0)
     a = p.parse_args(argv)
+    if a.cmd == "blender":
+        if a.list:
+            from .shared.schemas import BLENDER_SCRIPTS
+            for name, usage in BLENDER_SCRIPTS.items():
+                print(f"{name:14} {usage}")
+            return
+        if (a.script is None) == (a.code is None):
+            p.error("blender: give --script NAME or --code FILE.py")
 
     try:
         from .client.http_client import ApiError
@@ -197,6 +226,10 @@ def main(argv: list[str] | None = None) -> None:
             _submit_and_fetch(a, "pixal3d", {"image": a.image, "remove_background": not a.keep_background,
                                              "resolution": a.resolution, "max_faces": a.faces,
                                              "texture_size": a.texture, "count": a.count, "seed": a.seed})
+        elif a.cmd == "blender":
+            code = Path(a.code).read_text() if a.code else None
+            _submit_and_fetch(a, "blender", {"files": a.files, "script": a.script, "code": code,
+                                             "args": script_args})
         elif a.cmd == "status":
             print(_client().status(a.job).model_dump_json(indent=2, exclude_none=True))
         elif a.cmd == "log":
