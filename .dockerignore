@@ -1,4 +1,5 @@
-# model weights and job results are mounted, never baked into the image
+# installed tools and job results are mounted, never baked into the image
+installed/
 models/
 jobs/
 # local configuration with secrets

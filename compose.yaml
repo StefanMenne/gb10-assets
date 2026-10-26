@@ -18,7 +18,7 @@ services:
       JOB_TTL_H: ${JOB_TTL_H:-24}
     volumes:
       # relative paths are resolved against this directory
-      - ${MODELS_DIR:-./models}:/models
+      - ${INSTALL_DIR:-./installed}:/installed
       - ${JOBS_DIR:-./jobs}:/jobs
     deploy:
       resources:

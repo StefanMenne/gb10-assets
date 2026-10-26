@@ -1,7 +1,7 @@
 """Qwen-Image-Edit-2511 worker: edit one to three input images with a text instruction.
 
-Weights: $MODELS_DIR/qwen-image-edit/Qwen-Image-Edit-2511 and the 4-step Lightning LoRA in
-$MODELS_DIR/qwen-image-edit/Qwen-Image-Edit-2511-Lightning (download.sh). The LoRA is fused into the
+Weights: $WEIGHTS_DIR/Qwen-Image-Edit-2511 and the 4-step Lightning LoRA in
+$WEIGHTS_DIR/Qwen-Image-Edit-2511-Lightning (download.sh). The LoRA is fused into the
 transformer at load time; settings follow the Qwen-Image-Lightning reference script: 4 steps, CFG 1.0 and a
 scheduler with shift 3 (CFG 1.0: no negative prompt). Without width/height the output keeps the aspect ratio of the first image at about one
 megapixel.
@@ -16,7 +16,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from _worker import contact_sheet, log, seeds, serve  # noqa: E402
 
-ROOT = Path(os.environ.get("MODELS_DIR", "models")) / "qwen-image-edit"
+ROOT = Path(os.environ.get("WEIGHTS_DIR", "weights"))
 MODEL = ROOT / "Qwen-Image-Edit-2511"
 LORA = ROOT / "Qwen-Image-Edit-2511-Lightning" / "Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors"
 STEPS, CFG = 4, 1.0
@@ -58,8 +58,8 @@ def load():
 
     for path in (MODEL / "model_index.json", LORA):
         if not path.exists():
-            raise FileNotFoundError(f"{path} missing, download it on the GB10 system: "
-                                    "scripts/docker.sh download qwen-image-edit")
+            raise FileNotFoundError(f"{path} missing, install the tool on the GB10 system: "
+                                    "scripts/docker.sh install qwen-image-edit")
     # disable_mmap: the same slowdown for the diffusers components (transformer 41 GB: ~45 s instead of minutes)
     pipe = QwenImageEditPlusPipeline.from_pretrained(
         MODEL, scheduler=FlowMatchEulerDiscreteScheduler.from_config(SCHEDULER),

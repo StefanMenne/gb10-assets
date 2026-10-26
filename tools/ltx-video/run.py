@@ -1,7 +1,7 @@
 """LTX-2.5 worker: video with sound from text, keyframe images or an audio track, and retakes of existing videos.
 
-Weights: $MODELS_DIR/ltx-video/LTX-2.5 (download.sh): the 22B distilled transformer in NVFP4, run through the
-NVFP4 GEMM of ltx-kernels (build_kernels.sh), plus the bf16 Gemma 4 text encoder, VAEs, duration head and spatial
+Weights: $WEIGHTS_DIR/LTX-2.5 (download.sh): the 22B distilled transformer in NVFP4, run through the
+NVFP4 GEMM of ltx-kernels (post_install.sh), plus the bf16 Gemma 4 text encoder, VAEs, duration head and spatial
 upscaler. All modes share one ModelRegistry, so every component is read from disk once and stays in memory
 (~50 GB) for the next jobs; the pipelines themselves only build modules around the cached weights.
 
@@ -23,7 +23,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from _worker import log, seeds, serve  # noqa: E402
 
-ROOT = Path(os.environ.get("MODELS_DIR", "models")) / "ltx-video" / "LTX-2.5"
+ROOT = Path(os.environ.get("WEIGHTS_DIR", "weights")) / "LTX-2.5"
 TRANSFORMER = ROOT / "diffusion_models" / "ltx-2.5-22b-distilled-transformer-nvfp4.safetensors"
 TEXT_ENCODER = ROOT / "text_encoders" / "gemma4-12b-with-proj-ltx-2.5-bf16.safetensors"
 VIDEO_VAE = ROOT / "vae" / "ltx-2.5-video-vae-bf16.safetensors"
@@ -58,10 +58,11 @@ def load():
 
     for path in (TRANSFORMER, TEXT_ENCODER, VIDEO_VAE, AUDIO_VAE, DURATION_HEAD, UPSAMPLER):
         if not path.exists():
-            raise FileNotFoundError(f"{path} missing, download it on the GB10 system: "
-                                    "scripts/docker.sh download ltx-video")
+            raise FileNotFoundError(f"{path} missing, install the tool on the GB10 system: "
+                                    "scripts/docker.sh install ltx-video")
     if reason := unavailable_reason():
-        raise RuntimeError(f"NVFP4 kernels unusable ({reason}); build them with tools/ltx-video/build_kernels.sh")
+        raise RuntimeError(f"NVFP4 kernels unusable ({reason}); reinstall the tool on the GB10 system: "
+                           "scripts/docker.sh install ltx-video")
     paths = ModelPaths.from_split(transformer_path=str(TRANSFORMER), text_encoder_path=str(TEXT_ENCODER),
                                   video_vae_path=str(VIDEO_VAE), audio_vae_path=str(AUDIO_VAE),
                                   duration_head_path=str(DURATION_HEAD))

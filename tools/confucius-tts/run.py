@@ -1,6 +1,6 @@
 """Confucius4-TTS worker: cross-lingual zero-shot voice cloning (e.g. a German reference voice speaking Thai).
 
-Weights (download.sh), all in $MODELS_DIR/confucius-tts:
+Weights (download.sh), all in $WEIGHTS_DIR:
   Confucius4-TTS/                  T2S and S2A checkpoints, tokenizer, w2v-BERT feature statistics
   w2v-bert-2.0/                    semantic features of the reference (facebook/w2v-bert-2.0)
   campplus/campplus_cn_common.bin  speaker style encoder (funasr/campplus)
@@ -20,7 +20,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from _worker import log, seeds, serve  # noqa: E402
 
-ROOT = Path(os.environ.get("MODELS_DIR", "models")) / "confucius-tts"
+ROOT = Path(os.environ.get("WEIGHTS_DIR", "weights"))
 LOCAL = {  # Hub repo -> local directory
     "netease-youdao/Confucius4-TTS": ROOT / "Confucius4-TTS",
     "facebook/w2v-bert-2.0": ROOT / "w2v-bert-2.0",
@@ -79,8 +79,8 @@ def load():
 
     missing = [str(p) for p in REQUIRED if not p.exists()]
     if missing:
-        raise FileNotFoundError(f"{', '.join(missing)} missing, download them on the GB10 system: "
-                                "scripts/docker.sh download confucius-tts")
+        raise FileNotFoundError(f"{', '.join(missing)} missing, install the tool on the GB10 system: "
+                                "scripts/docker.sh install confucius-tts")
     inference.hf_hub_download = local_file
     inference.ConfuciusTTS._load_prompt = load_prompt
     with tempfile.NamedTemporaryFile("w", suffix=".yaml") as f:

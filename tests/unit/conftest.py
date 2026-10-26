@@ -54,13 +54,19 @@ def _reset_fake():
 
 
 @pytest.fixture(autouse=True)
+def _tools_installed(monkeypatch):
+    """The API accepts jobs only for installed tools; FakeWorker needs no installation."""
+    monkeypatch.setattr("gb10_assets.server.app.install_problem", lambda settings, tool: None)
+
+
+@pytest.fixture(autouse=True)
 def _no_retry_delay(monkeypatch):
     monkeypatch.setattr("gb10_assets.client.http_client.RETRY_DELAY_S", 0)
 
 
 @pytest.fixture
 def settings(tmp_path):
-    return Settings(token=TOKEN, jobs_dir=tmp_path / "jobs", models_dir=tmp_path / "models",
+    return Settings(token=TOKEN, jobs_dir=tmp_path / "jobs", install_dir=tmp_path / "installed",
                     memory_wait_s=0.2, worker_ready_s=10)
 
 

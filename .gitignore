@@ -1,4 +1,6 @@
-# model weights and job results: never commit
+# installed tools (environments, model weights) and job results: never commit
+installed/
+# weights before tools were installed into installed/
 models/
 jobs/
 wheels/

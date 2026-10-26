@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 # Docker helper for the gb10-assets server. Settings come from .env (see .env.example).
 #
-#   scripts/docker.sh init                create .env with a random token, create the models/jobs directories
+#   scripts/docker.sh init                create .env with a random token, create the installed/jobs directories
 #   scripts/docker.sh init_without_token  the same, but without authentication (GB10_ASSETS_TOKEN=none)
 #   scripts/docker.sh build               build the image (tags :<GB10_ASSETS_TAG> and :<version>)
 #   scripts/docker.sh up | down | logs    start in the background, stop, follow the server log
-#   scripts/docker.sh download [tool ...] download model weights with the image (no uv needed on the host)
+#   scripts/docker.sh install TOOL ...    install tools (environment + weights) with the image, --all: every tool
+#   scripts/docker.sh update              reinstall the installed tools that changed (after build)
+#   scripts/docker.sh uninstall TOOL ...  delete a tool's environment and weights
+#   scripts/docker.sh list                tools and whether they are installed
 set -euo pipefail
-ENV_MODELS_DIR=${MODELS_DIR:-}
+ENV_INSTALL_DIR=${INSTALL_DIR:-}
 source "$(dirname "$0")/lib/config.sh"
 cd "$ROOT"
 
@@ -29,7 +32,7 @@ confirm() {
 # create the bind-mount directories as the host user; Docker would create missing ones owned by root
 make_dirs() {
   local jobs; jobs=$(env_value JOBS_DIR)
-  mkdir -p "$MODELS_DIR" "$(abs_path "${jobs:-jobs}")"
+  mkdir -p "$INSTALL_DIR" "$(abs_path "${jobs:-jobs}")"
 }
 
 cmd=${1:-}; shift || true
@@ -67,9 +70,9 @@ case $cmd in
       fi
       [[ $backup == 0 ]] || echo "previous settings: .env.bak; a running server keeps its old token until: $0 up"
     fi
-    dir=${ENV_MODELS_DIR:-$(env_value MODELS_DIR)}; MODELS_DIR=$(abs_path "${dir:-models}")   # from the new .env
+    dir=${ENV_INSTALL_DIR:-$(env_value INSTALL_DIR)}; INSTALL_DIR=$(abs_path "${dir:-installed}")   # new .env
     make_dirs
-    echo "models: $MODELS_DIR"
+    echo "tools are installed in: $INSTALL_DIR"
     ;;
   build)
     need_env
@@ -87,12 +90,29 @@ case $cmd in
   logs)
     docker compose logs -f "$@"
     ;;
-  download)
+  install | update)
     need_env; make_dirs
-    docker compose run --rm --no-deps server scripts/download-all.sh "$@"
+    [[ $cmd == install ]] || set -- --outdated
+    [[ $# -gt 0 ]] || { echo "usage: $0 install TOOL ... | --all   (tools: $0 list)" >&2; exit 1; }
+    # with the GPU like the server: compiling CUDA extensions (ltx-video) links the driver's libcuda
+    docker compose run --rm --no-deps server scripts/install.sh "$@"
+    ;;
+  uninstall)
+    [[ $# -gt 0 ]] || { echo "usage: $0 uninstall TOOL ..." >&2; exit 1; }
+    for t in "$@"; do
+      dir=$INSTALL_DIR/$t
+      [[ $t =~ ^[a-z0-9-]+$ && -d $dir ]] || { echo "ERROR: $t is not installed ($dir)" >&2; exit 1; }
+      confirm "Delete $dir ($(du -sh "$dir" | cut -f1), environment and weights)?" || continue
+      # the lock is held while a worker of the tool runs or an installation is going on
+      flock -n "$dir/.lock" rm -rf "$dir" || { echo "ERROR: $t is in use, try again later" >&2; exit 1; }
+      echo "uninstalled $t"
+    done
+    ;;
+  list)
+    scripts/install.sh --list
     ;;
   *)
-    sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'
     [[ -z $cmd ]] || exit 1
     ;;
 esac

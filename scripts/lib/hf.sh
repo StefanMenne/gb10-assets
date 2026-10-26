@@ -2,13 +2,16 @@
 #
 #   hf_fetch <repo> <revision> <dest> [--gated <license-url>] [hf download options ...]
 #
+# Sets WEIGHTS_DIR, the weights directory of the calling tools/<tool>/download.sh: scripts/install.sh passes it,
+# when a download.sh runs on its own it defaults to $INSTALL_DIR/<tool>/weights.
 # Downloads a pinned Hugging Face revision into <dest>. Idempotent: `hf download --local-dir` keeps
 # metadata in <dest>/.cache and skips files that are already complete. Gated models need HF_TOKEN in the
 # environment or in <repo>/.env (never commit it); the license link is printed so it can be accepted first.
 # Needs uv on the host (https://docs.astral.sh/uv/): `hf` runs via uvx in a throwaway environment.
 set -euo pipefail
 
-source "$(dirname "${BASH_SOURCE[0]}")/config.sh"   # MODELS_DIR
+source "$(dirname "${BASH_SOURCE[0]}")/config.sh"   # INSTALL_DIR
+WEIGHTS_DIR=${WEIGHTS_DIR:-$INSTALL_DIR/$(basename "$(cd "$(dirname "$0")" && pwd)")/weights}
 HF_HUB_VERSION=2.3.0
 
 hf_fetch() {

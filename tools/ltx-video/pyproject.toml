@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "LTX-2.5 (NVFP4 distilled) worker for gb10-assets: text/image/audio to video and video retakes"
 requires-python = ">=3.12,<3.13"
 dependencies = [
-    # torch 2.14 headers need C++20, ltx-kernels (NVFP4 GEMM, built by build_kernels.sh) compiles with C++17
+    # torch 2.14 headers need C++20, ltx-kernels (NVFP4 GEMM, built by post_install.sh) compiles with C++17
     "torch==2.13.0",
     "torchvision==0.28.0",
     # newest cu132 build; ltx-core only uses its pure-Python MelSpectrogram and resample
@@ -26,7 +26,7 @@ environments = ["sys_platform == 'linux' and platform_machine == 'aarch64'"]
 torch = { index = "pytorch-cu132" }
 torchvision = { index = "pytorch-cu132" }
 torchaudio = { index = "pytorch-test-cu132" }
-# keep in sync with LTX_REV in build_kernels.sh
+# keep in sync with LTX_REV in post_install.sh
 ltx-core = { git = "https://github.com/Lightricks/LTX-2", rev = "e98f6d927d83c92ef2be6aec76c8440b19306e39", subdirectory = "packages/ltx-core" }
 ltx-pipelines = { git = "https://github.com/Lightricks/LTX-2", rev = "e98f6d927d83c92ef2be6aec76c8440b19306e39", subdirectory = "packages/ltx-pipelines" }
 

@@ -24,7 +24,7 @@ from .. import __version__
 from ..shared.schemas import REQUESTS, Health, JobInfo, SubmitJob, check_file_name
 from .config import Settings
 from .queue import JobQueue
-from .runners import TOOLS
+from .runners import TOOLS, install_problem
 
 MAX_UPLOAD_BYTES = 512 * 1024**2
 
@@ -69,6 +69,8 @@ def create_app(settings: Settings, queue: JobQueue | None = None) -> FastAPI:
             sub = SubmitJob.model_validate_json(request)
             if sub.tool not in REQUESTS or sub.tool not in TOOLS:
                 raise HTTPException(422, f"unknown tool {sub.tool!r}, available: {sorted(TOOLS)}")
+            if problem := install_problem(settings, sub.tool):
+                raise HTTPException(409, problem)
             params = REQUESTS[sub.tool].model_validate(sub.params)
             names = [check_file_name(f.filename or "") for f in files]
         except ValidationError as e:

@@ -89,6 +89,12 @@ def test_rejects_bad_requests(api, params, files, tool, needle):
     assert r.status_code == 422 and needle in r.text
 
 
+def test_rejects_tool_not_installed(api, monkeypatch):
+    monkeypatch.setattr("gb10_assets.server.app.install_problem", runners.install_problem)
+    r = submit(api, {"prompt": "x"})
+    assert r.status_code == 409 and "scripts/docker.sh install flux2-klein" in r.text
+
+
 def test_failed_job_reports_error(api):
     job_id = submit(api, {"prompt": "fail"}).json()["id"]
     wait_for(lambda: api.get(f"/jobs/{job_id}", headers=AUTH).json()["state"] == "failed")

@@ -1,6 +1,6 @@
 """Qwen3-TTS 1.7B worker: text to speech with a designed voice (VoiceDesign) or a cloned voice (Base).
 
-Weights: $MODELS_DIR/qwen-tts/Qwen3-TTS-12Hz-1.7B-VoiceDesign and .../Qwen3-TTS-12Hz-1.7B-Base (download.sh),
+Weights: $WEIGHTS_DIR/Qwen3-TTS-12Hz-1.7B-VoiceDesign and .../Qwen3-TTS-12Hz-1.7B-Base (download.sh),
 both loaded at start (2 x 4.5 GB bf16), because designing a voice and then cloning it is the usual workflow.
 VoiceDesign takes voice_description; cloning takes reference_audio plus optionally reference_text (without the
 transcript only the speaker embedding is used). The clone prompt is built once per job.
@@ -15,7 +15,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from _worker import log, seeds, serve  # noqa: E402
 
-ROOT = Path(os.environ.get("MODELS_DIR", "models")) / "qwen-tts"
+ROOT = Path(os.environ.get("WEIGHTS_DIR", "weights"))
 DESIGN = ROOT / "Qwen3-TTS-12Hz-1.7B-VoiceDesign"
 BASE = ROOT / "Qwen3-TTS-12Hz-1.7B-Base"
 # ISO 639-1 codes of the request -> Qwen3-TTS language names
@@ -29,8 +29,8 @@ def load():
 
     for path in (DESIGN, BASE):
         if not (path / "model.safetensors").exists():
-            raise FileNotFoundError(f"{path} missing, download it on the GB10 system: "
-                                    "scripts/docker.sh download qwen-tts")
+            raise FileNotFoundError(f"{path} missing, install the tool on the GB10 system: "
+                                    "scripts/docker.sh install qwen-tts")
     # sdpa: flash-attn has no aarch64 wheels
     kw = {"device_map": "cuda", "dtype": torch.bfloat16, "attn_implementation": "sdpa"}
     return {"design": Qwen3TTSModel.from_pretrained(str(DESIGN), **kw),

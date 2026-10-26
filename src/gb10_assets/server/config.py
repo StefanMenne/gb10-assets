@@ -13,10 +13,9 @@ NO_TOKEN = "none"  # GB10_ASSETS_TOKEN=none: no authentication, every request is
 class Settings:
     token: str | None  # None: authentication disabled
     jobs_dir: Path = REPO_ROOT / "jobs"
-    models_dir: Path = REPO_ROOT / "models"   # same default as scripts/download-all.sh
-    tools_dir: Path = REPO_ROOT / "tools"
-    # where the per-tool uv environments live: <tool_envs_dir>/<tool>/.venv (Docker: /opt); default tools/<tool>/.venv
-    tool_envs_dir: Path | None = None
+    # installed tools (scripts/install.sh): <install_dir>/<tool>/env (uv environment) and .../weights
+    install_dir: Path = REPO_ROOT / "installed"   # same default as scripts/lib/config.sh
+    tools_dir: Path = REPO_ROOT / "tools"         # tool definitions: run.py, pyproject.toml, download.sh, ...
     worker_idle_s: float = 0.0       # keep an idle worker this long for a following job of the same tool
     memory_wait_s: float = 600.0     # wait this long for enough free memory before failing a job
     worker_ready_s: float = 1800.0   # max model loading time
@@ -30,13 +29,11 @@ class Settings:
         elif len(token) < 16:
             raise SystemExit("GB10_ASSETS_TOKEN must be set to a random string of at least 16 characters "
                              f"(e.g. `openssl rand -hex 32`), or to {NO_TOKEN!r} to disable authentication")
-        envs = os.environ.get("TOOL_ENVS_DIR")
         return cls(
             token=token,
             jobs_dir=Path(os.environ.get("JOBS_DIR", REPO_ROOT / "jobs")).resolve(),
-            models_dir=Path(os.environ.get("MODELS_DIR", REPO_ROOT / "models")).resolve(),
+            install_dir=Path(os.environ.get("INSTALL_DIR", REPO_ROOT / "installed")).resolve(),
             tools_dir=Path(os.environ.get("TOOLS_DIR", REPO_ROOT / "tools")).resolve(),
-            tool_envs_dir=Path(envs).resolve() if envs else None,
             worker_idle_s=float(os.environ.get("WORKER_IDLE_S", 0)),
             memory_wait_s=float(os.environ.get("MEMORY_WAIT_S", 600)),
             worker_ready_s=float(os.environ.get("WORKER_READY_S", 1800)),

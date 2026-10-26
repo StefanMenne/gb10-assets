@@ -1,9 +1,13 @@
 """Worker processes: one tools/<tool>/run.py per tool, started in that tool's own uv environment.
 
 GPU memory is released completely because the worker process exits; see tools/_worker.py for the protocol.
+Tools are installed by scripts/install.sh into <install_dir>/<tool>/ (env/, weights/); a worker only starts
+for a complete installation that matches the current tool definition (tool_hash).
 """
 from __future__ import annotations
 
+import fcntl
+import hashlib
 import json
 import os
 import signal
@@ -30,6 +34,26 @@ TOOLS: dict[str, ToolSpec] = {t.name: t for t in (
     ToolSpec("confucius-tts", min_free_gb=16),  # T2S 2.6 GB + w2v-BERT 2.3 GB (fp32) + S2A + BigVGAN; estimate
     ToolSpec("ltx-video", min_free_gb=85),  # measured peak ~77 GB (all weights resident, 1536x1024, 5 s retake)
 )}
+
+
+def tool_hash(tool_dir: Path) -> str:
+    """Fingerprint of what an installation depends on, see tool_hash in scripts/lib/config.sh (same result):
+    sha256 over the `sha256sum` lines of every file in tools/<tool> except the Python code."""
+    files = sorted((p for p in tool_dir.iterdir() if p.is_file() and p.suffix != ".py"), key=lambda p: p.name)
+    lines = "".join(f"{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}\n" for p in files)
+    return hashlib.sha256(lines.encode()).hexdigest()[:16]
+
+
+def install_problem(settings: Settings, tool: str) -> str | None:
+    """Why the tool cannot run on this server, or None if it is installed and up to date."""
+    try:
+        installed = (settings.install_dir / tool / ".installed").read_text().strip()
+    except FileNotFoundError:
+        return f"{tool} is not installed on the server (run there: scripts/docker.sh install {tool})"
+    if installed != tool_hash(settings.tools_dir / tool):
+        return (f"{tool} was installed for another version of the server, reinstall it "
+                "(run there: scripts/docker.sh update)")
+    return None
 
 
 class WorkerError(RuntimeError):
@@ -59,15 +83,27 @@ class Worker:
         self._log: IO[str] | None = None
         self._log_lock = threading.Lock()
         tool_dir = settings.tools_dir / spec.name
-        envs = settings.tool_envs_dir / spec.name if settings.tool_envs_dir else tool_dir
-        python = envs / ".venv" / "bin" / "python"
-        if not python.exists():
-            raise WorkerError(f"environment for {spec.name} missing: {python} (run `uv sync` in {tool_dir})")
-        env = dict(os.environ, MODELS_DIR=str(settings.models_dir), PYTHONUNBUFFERED="1")
-        env.pop("GB10_ASSETS_TOKEN", None)
-        self.proc = subprocess.Popen(
-            [str(python), str(tool_dir / "run.py")], cwd=tool_dir, env=env, text=True, bufsize=1,
-            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
+        installed = settings.install_dir / spec.name
+        if not installed.is_dir():
+            raise WorkerError(install_problem(settings, spec.name))
+        # shared lock for the worker's lifetime: scripts/install.sh and `docker.sh uninstall` wait for it
+        self._lock = open(installed / ".lock", "a")
+        try:
+            try:
+                fcntl.flock(self._lock, fcntl.LOCK_SH | fcntl.LOCK_NB)
+            except BlockingIOError:
+                raise WorkerError(f"{spec.name} is being installed on the server, retry when that is done") from None
+            if problem := install_problem(settings, spec.name):
+                raise WorkerError(problem)
+            env = dict(os.environ, WEIGHTS_DIR=str(installed / "weights"), PYTHONUNBUFFERED="1")
+            env.pop("GB10_ASSETS_TOKEN", None)
+            self.proc = subprocess.Popen(
+                [str(installed / "env" / "bin" / "python"), str(tool_dir / "run.py")], cwd=tool_dir, env=env,
+                text=True, bufsize=1, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                start_new_session=True)
+        except BaseException:
+            self._lock.close()
+            raise
         threading.Thread(target=self._pump_stderr, daemon=True).start()
 
     def set_log(self, path: Path | None) -> None:
@@ -126,7 +162,9 @@ class Worker:
             self.proc.wait(timeout)
         except (subprocess.TimeoutExpired, OSError):
             self.kill()
+            self.proc.wait()
         self.set_log(None)
+        self._lock.close()
 
     def kill(self) -> None:
         try:
