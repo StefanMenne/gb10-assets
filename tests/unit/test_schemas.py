@@ -6,6 +6,7 @@ from gb10_assets.shared.schemas import (
     EditImage,
     GenerateImage,
     GenerateVideo,
+    ImageTo3D,
     JobState,
     Speak,
     SpeakMultilingual,
@@ -115,6 +116,25 @@ def test_video_modes():
 def test_video_invalid(params):
     with pytest.raises(ValidationError):
         GenerateVideo.model_validate(params)
+
+
+def test_image_to_3d():
+    r = ImageTo3D(image="chair.png")
+    assert (r.remove_background, r.resolution, r.max_faces, r.texture_size, r.count) == (True, 1536, 700_000, 4096, 1)
+    assert r.input_files() == ["chair.png"] and REQUESTS["pixal3d"] is ImageTo3D
+
+
+@pytest.mark.parametrize("params", [
+    {},
+    {"image": "a.png", "resolution": 1280},
+    {"image": "a.png", "max_faces": 5},
+    {"image": "a.png", "texture_size": 3000},
+    {"image": "a.png", "count": 5},
+    {"image": "a.png", "prompt": "x"},
+])
+def test_image_to_3d_invalid(params):
+    with pytest.raises(ValidationError):
+        ImageTo3D.model_validate(params)
 
 
 @pytest.mark.parametrize("name", ["a/b.png", "..png", ".hidden", "", "x" * 200, "a b.png"])

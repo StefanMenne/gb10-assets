@@ -28,8 +28,15 @@ for their free licenses.
 | `confucius-tts` | [Confucius4-TTS](https://huggingface.co/netease-youdao/Confucius4-TTS) | cross-lingual voice cloning (e.g. a German voice speaking Thai); 14 languages incl. th, vi, id, ms | Apache-2.0 | ~6 GB | `gb10-assets speak-multilingual` |
 | `ltx-video` | [LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5) 22B distilled, NVFP4 | video with sound from text or keyframe images, video for an audio track, retake of a time range | [LTX-2.x Community](https://github.com/Lightricks/LTX-2/blob/main/LICENSE-2_x)¹ | ~50 GB | `gb10-assets video`, `audio-to-video`, `retake` |
 
+| `pixal3d` | [Pixal3D](https://huggingface.co/Comfy-Org/Pixal3D) (on TRELLIS.2), run by [ComfyUI](https://github.com/Comfy-Org/ComfyUI) | one image to a textured 3D model: GLB with PBR maps (base color, metallic, roughness, normal, occlusion) | MIT² | ~9 GB | `gb10-assets 3d` |
+
 ¹ Not an open-source license: free, also commercially, for companies under $10M annual revenue; the model is
 gated, so downloading it needs `HF_TOKEN` and the license accepted on its Hugging Face page.
+
+² Pixal3D, TRELLIS.2, BiRefNet and MoGe are MIT; the DINOv3 image encoder it uses is under Meta's
+[DINOv3 License](https://huggingface.co/facebook/dinov3-vitl16-pretrain-lvd1689m). ComfyUI (GPL-3.0) is
+downloaded at installation and runs as a separate process; its native 3D nodes need none of the
+non-commercial NVIDIA libraries (nvdiffrast, nvdiffrec) of the original TRELLIS.2 code.
 
 The server keeps one model in memory at a time and switches when a job for another tool arrives.
 
@@ -121,6 +128,8 @@ gb10-assets video "the knight turns and walks away" -i knight.png -d 6 -o ~/gb10
 gb10-assets video "the flower blooms" -i bud.png -i bloom.png -d 4 -o ~/gb10-videos              # first + last frame
 gb10-assets audio-to-video "a woman sings into a microphone on stage" -a song.wav -i singer.png -o ~/gb10-videos
 gb10-assets retake clip.mp4 "the fox jumps over a log" --start 2 --end 4 -o ~/gb10-videos       # edit a segment
+gb10-assets 3d chair.png -o ~/gb10-3d                                                          # image to GLB
+gb10-assets 3d chair.png --resolution 1024 --faces 50000 --texture 2048 -o ~/gb10-3d          # faster, game-ready
 gb10-assets health                                                                             # server state
 gb10-assets log <job-id>                                                                       # log of a failed job
 ```

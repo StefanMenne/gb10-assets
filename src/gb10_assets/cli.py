@@ -11,6 +11,7 @@
     gb10-assets video "prompt" -o DIR [-i first.png [-i last.png]] [-d 5] [-W 1536 -H 1024] [--fps 24] [-n 2]
     gb10-assets audio-to-video "prompt" -a song.wav -o DIR [-i first.png] [-d 10]
     gb10-assets retake in.mp4 "prompt" --start 2 --end 4 -o DIR [--regenerate video|audio]
+    gb10-assets 3d object.png -o DIR [--resolution 1024] [--faces 50000] [--texture 2048] [--keep-background]
     gb10-assets status JOB | fetch JOB DIR [--wait 600] | log JOB | cancel JOB
 
 Generating commands wait for the result by default (--no-wait: print the job id and return).
@@ -130,6 +131,15 @@ def main(argv: list[str] | None = None) -> None:
     rt.add_argument("-n", "--count", type=int, default=1)
     rt.add_argument("--seed", type=int)
 
+    d3 = sub.add_parser("3d", parents=[gen], help="image to textured 3D model, GLB (Pixal3D)")
+    d3.add_argument("image")
+    d3.add_argument("--resolution", type=int, choices=[1024, 1536], default=1536, help="1024: about twice as fast")
+    d3.add_argument("--faces", type=int, default=700_000, help="faces of the mesh")
+    d3.add_argument("--texture", type=int, choices=[1024, 2048, 4096], default=4096, help="texture map size")
+    d3.add_argument("--keep-background", action="store_true", help="do not cut the object out first")
+    d3.add_argument("-n", "--count", type=int, default=1)
+    d3.add_argument("--seed", type=int)
+
     for name in ("status", "log", "cancel"):
         sub.add_parser(name).add_argument("job")
     f = sub.add_parser("fetch", help="download results")
@@ -183,6 +193,10 @@ def main(argv: list[str] | None = None) -> None:
             _submit_and_fetch(a, "ltx-video", {"video": a.video, "prompt": a.prompt, "start_s": a.start,
                                                "end_s": a.end, "regenerate": a.regenerate, "count": a.count,
                                                "seed": a.seed})
+        elif a.cmd == "3d":
+            _submit_and_fetch(a, "pixal3d", {"image": a.image, "remove_background": not a.keep_background,
+                                             "resolution": a.resolution, "max_faces": a.faces,
+                                             "texture_size": a.texture, "count": a.count, "seed": a.seed})
         elif a.cmd == "status":
             print(_client().status(a.job).model_dump_json(indent=2, exclude_none=True))
         elif a.cmd == "log":

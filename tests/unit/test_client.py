@@ -197,6 +197,14 @@ def test_mcp_video_tools(client, tmp_path):
     assert "start_s < end_s" in str(exc.value.__cause__)
 
 
+def test_mcp_image_to_3d(client, tmp_path):
+    (tmp_path / "chair.png").write_bytes(b"x")
+    server = mcp_server.build(mcp_server.Adapter(client))
+    sub = json.loads(call(server, "image_to_3d", {"image": str(tmp_path / "chair.png"), "resolution": 1024}).content[0].text)
+    info = client.wait(sub["job_id"], 5)
+    assert info.state.value == "done" and info.tool == "pixal3d"
+
+
 def test_mcp_refuses_to_start_on_mismatch(monkeypatch, capsys):
     def handler(request):
         return httpx.Response(200, json={"status": "ok", "api_version": 999, "version": "9.9.9"})

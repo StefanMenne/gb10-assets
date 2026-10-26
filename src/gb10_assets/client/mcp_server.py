@@ -25,7 +25,8 @@ Look at generated images with the Read tool before using them.
 Speech: design_voice creates a voice from a description, speak clones a voice for de/en and 8 more languages,
 speak_multilingual clones a voice into languages such as Thai, even from a reference in another language.
 Video (with sound): generate_video from text and keyframe images, audio_to_video for a given soundtrack,
-retake_video to regenerate a time range of a video. A video job takes minutes; look at the .jpg frames."""
+retake_video to regenerate a time range of a video. A video job takes minutes; look at the .jpg frames.
+3D: image_to_3d turns one image of an object into a textured GLB (several minutes); look at the .png render."""
 
 
 class Adapter:
@@ -208,6 +209,25 @@ def build(adapter: Adapter | None = None) -> MCPServer:
         params = {"video": video, "prompt": prompt, "start_s": start_s, "end_s": end_s, "regenerate": regenerate,
                   "count": count, "seed": seed}
         return submitted(adapter.client.submit("ltx-video", params))
+
+    @mcp.tool()
+    def image_to_3d(
+        image: Annotated[str, Field(description=(
+            "Local path of an image of one object, ideally on a plain background; generate one first if needed"))],
+        remove_background: Annotated[bool, Field(description="Cut the object out first; False only for an image "
+                                                             "with a clean black or transparent background")] = True,
+        resolution: Annotated[int, Field(description="Shape detail: 1536 (default) or 1024 (about twice as fast)")] = 1536,
+        max_faces: Annotated[int, Field(description="Faces of the mesh (10000-2000000); lower for game assets")] = 700_000,
+        texture_size: Annotated[int, Field(description="PBR texture size: 1024, 2048 or 4096")] = 4096,
+        count: Annotated[int, Field(description="Number of variants in this job (1-4)")] = 1,
+        seed: Annotated[int | None, Field(description="Start seed; variants use seed..seed+count-1")] = None,
+    ) -> dict:
+        """Create a textured 3D model from one image with Pixal3D (TRELLIS.2 based): the shape follows the image,
+        in the photo's camera perspective. Outputs model_<seed>.glb (PBR: base color, metallic, roughness, normal,
+        occlusion) and model_<seed>.png, a render of it. Takes 3-7 minutes. Returns a job_id."""
+        params = {"image": image, "remove_background": remove_background, "resolution": resolution,
+                  "max_faces": max_faces, "texture_size": texture_size, "count": count, "seed": seed}
+        return submitted(adapter.client.submit("pixal3d", params))
 
     @mcp.tool()
     def job_status(job_id: str) -> dict:

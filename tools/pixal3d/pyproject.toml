@@ -1,0 +1,54 @@
+[project]
+name = "gb10-tool-pixal3d"
+version = "0.1.0"
+description = "Pixal3D image-to-3D worker for gb10-assets, run by a headless ComfyUI"
+requires-python = ">=3.12,<3.13"
+# ComfyUI itself is not a package: post_install.sh fetches it at COMFYUI_REV. These are its requirements.txt at
+# that revision, without the web frontend, workflow templates and docs (the worker starts it headless).
+dependencies = [
+    "torch==2.14.1",
+    "torchvision==0.29.1",
+    "torchsde",
+    "numpy>=1.25.0",
+    "einops",
+    "transformers>=4.50.3",
+    "tokenizers>=0.13.3",
+    "sentencepiece",
+    "safetensors>=0.4.2",
+    "aiohttp>=3.11.8",
+    "yarl>=1.18.0",
+    "pyyaml",
+    "pillow",
+    "scipy",
+    "tqdm",
+    "psutil",
+    "alembic",
+    "sqlalchemy>=2.0.0",
+    "filelock",
+    "av>=17.0.0",
+    "comfy-kitchen==0.2.39",
+    "comfy-aimdo==0.5.6",
+    "requests",
+    "simpleeval>=1.0.0",
+    "blake3",
+    "kornia>=0.7.1",
+    "spandrel",
+    "pydantic~=2.0",
+    "pydantic-settings~=2.0",
+    "pyopengl>=3.1.8",
+    "comfy-angle",
+]
+
+[tool.uv]
+package = false
+# GB10 only: aarch64, CUDA 13
+environments = ["sys_platform == 'linux' and platform_machine == 'aarch64'"]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu130" }
+torchvision = { index = "pytorch-cu130" }
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true

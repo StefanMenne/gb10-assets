@@ -185,8 +185,26 @@ class GenerateVideo(JobRequest):
         return self
 
 
+class ImageTo3D(JobRequest):
+    """Pixal3D (on TRELLIS.2, run by ComfyUI): one image to a textured 3D model (GLB with PBR materials). The
+    shape follows the image pixel-aligned, in the camera perspective of the photo."""
+
+    tool: ClassVar[str] = "pixal3d"
+    input_fields: ClassVar[tuple[str, ...]] = ("image",)
+
+    image: FileName = Field(description="One object, ideally on a plain background")
+    remove_background: bool = Field(True, description="Cut the object out first (BiRefNet); off for images that "
+                                                      "already have a transparent or clean black background")
+    resolution: Literal[1024, 1536] = Field(1536, description="Voxel resolution of the shape: 1536 more detail, "
+                                                              "1024 about twice as fast")
+    max_faces: int = Field(700_000, ge=10_000, le=2_000_000, description="Faces of the exported mesh")
+    texture_size: Literal[1024, 2048, 4096] = Field(4096, description="Side of the PBR texture maps")
+    seed: Seed | None = None
+    count: Annotated[int, Field(ge=1, le=4, description="Number of variants (seeds seed..seed+count-1)")] = 1
+
+
 REQUESTS: dict[str, type[JobRequest]] = {
-    m.tool: m for m in (GenerateImage, EditImage, Speak, SpeakMultilingual, GenerateVideo)}
+    m.tool: m for m in (GenerateImage, EditImage, Speak, SpeakMultilingual, GenerateVideo, ImageTo3D)}
 
 
 class SubmitJob(BaseModel):
