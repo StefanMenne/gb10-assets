@@ -1,0 +1,109 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1360" height="1340" viewBox="0 0 1360 1340" font-family="Ubuntu Sans, Inter, Liberation Sans, Arial, sans-serif">
+  <!-- Source of docs/architecture.png, rendered with: uvx cairosvg docs/architecture.svg -o docs/architecture.png -->
+  <defs>
+    <marker id="arrow" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="12" markerHeight="12" orient="auto-start-reverse">
+      <path d="M1 1 L10 6 L1 11" fill="none" stroke="#6b6b66" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <style>
+      .zone { fill: none; stroke: #a8a8a2; stroke-width: 2; stroke-dasharray: 8 7; }
+      .zone-title { font-size: 28px; font-weight: 700; fill: #1f1f1d; }
+      .zone-sub { font-size: 22px; fill: #5f5f5a; }
+      .box-title { font-size: 28px; font-weight: 700; text-anchor: middle; }
+      .box-sub { font-size: 22px; text-anchor: middle; }
+      .client rect { fill: #efeefc; stroke: #6c5fd6; stroke-width: 2; }
+      .client text { fill: #3a2f96; }
+      .server rect { fill: #e3f4ec; stroke: #2f7d5c; stroke-width: 2; }
+      .server text { fill: #17573c; }
+      .code rect { fill: #ffffff; stroke: #a8a8a2; stroke-width: 2; }
+      .code text { fill: #1f1f1d; }
+      .code .box-sub { fill: #5f5f5a; }
+      .line { fill: none; stroke: #6b6b66; stroke-width: 2.5; marker-end: url(#arrow); }
+      .label { font-size: 22px; fill: #4a4a46; }
+      .legend { font-size: 22px; fill: #4a4a46; }
+    </style>
+  </defs>
+  <rect width="1360" height="1340" fill="#ffffff"/>
+
+  <!-- GitHub -->
+  <rect class="zone" x="40" y="60" width="1280" height="360" rx="28"/>
+  <text class="zone-title" x="80" y="108">GitHub</text>
+  <text class="zone-sub" x="80" y="145">github.com/StefanMenne/gb10-assets</text>
+  <rect x="72" y="172" width="1216" height="216" rx="20" fill="#f1efe8" stroke="#8a8578" stroke-width="2"/>
+  <text x="104" y="214" font-size="28" font-weight="700" fill="#4a4535">gb10-assets (repository)</text>
+  <g class="client">
+    <rect x="104" y="244" width="320" height="112" rx="14"/>
+    <text class="box-title" x="264" y="290">marketplace.json</text>
+    <text class="box-sub" x="264" y="330">plugin catalog</text>
+    <rect x="448" y="244" width="240" height="112" rx="14"/>
+    <text class="box-title" x="568" y="290">plugin.json</text>
+    <text class="box-sub" x="568" y="330">plugin metadata</text>
+    <rect x="712" y="244" width="260" height="112" rx="14"/>
+    <text class="box-title" x="842" y="290">.mcp.json</text>
+    <text class="box-sub" x="842" y="330">starts MCP server</text>
+  </g>
+  <g class="code">
+    <rect x="996" y="244" width="260" height="112" rx="14"/>
+    <text class="box-title" x="1126" y="290">Code</text>
+    <text class="box-sub" x="1126" y="330">skills/ src/ tools/</text>
+  </g>
+
+  <!-- arrows between GitHub and the machines -->
+  <path class="line" d="M344 392 V694"/>
+  <text class="label" x="328" y="492" text-anchor="end">download</text>
+  <text class="label" x="328" y="524" text-anchor="end">/plugin install</text>
+  <path class="line" d="M490 928 H522 V398"/>
+  <text class="label" x="546" y="492">URL</text>
+  <text class="label" x="546" y="524">/plugin marketplace add</text>
+  <path class="line" d="M1208 392 V694"/>
+  <text class="label" x="1192" y="492" text-anchor="end">clone</text>
+  <text class="label" x="1192" y="524" text-anchor="end">once, git clone</text>
+
+  <!-- Client -->
+  <rect class="zone" x="40" y="580" width="520" height="620" rx="28"/>
+  <text class="zone-title" x="72" y="628">Client</text>
+  <text class="zone-sub" x="72" y="665">Linux / Windows</text>
+  <g class="client">
+    <rect x="72" y="700" width="416" height="112" rx="14"/>
+    <text class="box-title" x="280" y="746">Plugin cache</text>
+    <text class="box-sub" x="280" y="786">~/.claude/plugins/</text>
+    <rect x="72" y="872" width="416" height="112" rx="14"/>
+    <text class="box-title" x="280" y="918">Claude (Claude Code)</text>
+    <text class="box-sub" x="280" y="958">uses skills + MCP tools</text>
+    <rect x="72" y="1044" width="416" height="112" rx="14"/>
+    <text class="box-title" x="280" y="1090">MCP server (stdio)</text>
+    <text class="box-sub" x="280" y="1130">started by Claude</text>
+  </g>
+  <path class="line" d="M280 816 V866"/>
+  <path class="line" d="M280 988 V1038"/>
+
+  <!-- GB10 system -->
+  <rect class="zone" x="840" y="580" width="480" height="620" rx="28"/>
+  <text class="zone-title" x="872" y="628">GB10 system</text>
+  <text class="zone-sub" x="872" y="665">DGX Spark, ASUS GX10, ...</text>
+  <g class="server">
+    <rect x="872" y="700" width="416" height="112" rx="14"/>
+    <text class="box-title" x="1080" y="746">Repo clone</text>
+    <text class="box-sub" x="1080" y="786">compose.yaml, scripts/</text>
+    <rect x="872" y="872" width="416" height="112" rx="14"/>
+    <text class="box-title" x="1080" y="918">installed/ + jobs/</text>
+    <text class="box-sub" x="1080" y="958">per tool env + weights, results</text>
+    <rect x="872" y="1044" width="416" height="112" rx="14"/>
+    <text class="box-title" x="1080" y="1090">Docker container</text>
+    <text class="box-sub" x="1080" y="1130">REST API, queue, workers</text>
+  </g>
+  <path class="line" d="M1080 816 V866"/>
+  <path class="line" d="M1080 988 V1038"/>
+
+  <!-- client to server -->
+  <path class="line" d="M492 1100 H864"/>
+  <text class="label" x="680" y="1076" text-anchor="middle">GB10_ASSETS_URL</text>
+  <text class="label" x="680" y="1136" text-anchor="middle">HTTP + token</text>
+
+  <!-- legend -->
+  <rect x="72" y="1252" width="28" height="28" rx="6" fill="#efeefc" stroke="#6c5fd6" stroke-width="2"/>
+  <text class="legend" x="116" y="1274">plugin and client</text>
+  <rect x="460" y="1252" width="28" height="28" rx="6" fill="#e3f4ec" stroke="#2f7d5c" stroke-width="2"/>
+  <text class="legend" x="504" y="1274">server</text>
+  <rect x="720" y="1252" width="28" height="28" rx="6" fill="#ffffff" stroke="#a8a8a2" stroke-width="2"/>
+  <text class="legend" x="764" y="1274">code only, used on both sides</text>
+</svg>
