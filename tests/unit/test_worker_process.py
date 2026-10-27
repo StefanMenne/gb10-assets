@@ -71,6 +71,21 @@ def test_worker_serves_several_jobs(tool_settings, tmp_path):
     assert not w.alive()
 
 
+def test_last_log_line_before_event_reaches_the_job_log(tool_settings, tmp_path):
+    w = Worker(ToolSpec("fake", 1), tool_settings)
+    try:
+        w.wait_ready(30)
+        for i in range(20):  # the queue closes the log right after the event; formerly the last line raced it
+            log = tmp_path / f"log{i}.txt"
+            w.set_log(log)
+            w.run(tmp_path / f"job{i}", {"prompt": "hi", "seed": i})
+            w.set_log(None)
+            text = log.read_text()
+            assert "job done in" in text and "sync" not in text
+    finally:
+        w.stop()
+
+
 def test_worker_load_failure(tool_settings):
     (Path(tool_settings.tools_dir) / "fake" / "fail_load.py").touch()  # .py: does not change the tool_hash
     w = Worker(ToolSpec("fake", 1), tool_settings)

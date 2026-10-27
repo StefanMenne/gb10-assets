@@ -9,7 +9,7 @@ The server starts ``python tools/<tool>/run.py`` and talks JSON lines over stdin
                        {"event": "fatal", "message": "..."}               loading failed, worker exits
 
 Everything else (library output, progress, tracebacks) goes to stderr, which the server writes into the
-job log. File descriptor 1 is redirected to stderr so stray prints cannot corrupt the protocol. The worker
+job log; before each event a SYNC line on stderr tells the server that the log up to the event has arrived. File descriptor 1 is redirected to stderr so stray prints cannot corrupt the protocol. The worker
 loads the model once and serves jobs until stdin closes (sticky worker), then exits and frees GPU memory.
 """
 import json
@@ -18,6 +18,9 @@ import sys
 import time
 import traceback
 from pathlib import Path
+
+
+SYNC = "\x00sync"
 
 
 def log(msg):
@@ -36,6 +39,7 @@ def serve(load, run):
     out = _protocol_stream()
 
     def send(**msg):
+        print(SYNC, file=sys.stderr, flush=True)
         out.write(json.dumps(msg) + "\n")
         out.flush()
 

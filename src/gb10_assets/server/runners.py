@@ -58,6 +58,10 @@ def install_problem(settings: Settings, tool: str) -> str | None:
     return None
 
 
+SYNC_LINE = "\x00sync\n"  # tools/_worker.py writes it to stderr before every event
+SYNC_TIMEOUT_S = 5.0
+
+
 class WorkerError(RuntimeError):
     """The worker process is unusable (load failure, crash, kill); the queue discards it."""
 
@@ -84,6 +88,7 @@ class Worker:
         self.idle_since = time.monotonic()
         self._log: IO[str] | None = None
         self._log_lock = threading.Lock()
+        self._synced = threading.Semaphore(0)
         tool_dir = settings.tools_dir / spec.name
         installed = settings.install_dir / spec.name
         if not installed.is_dir():
@@ -117,6 +122,9 @@ class Worker:
     def _pump_stderr(self) -> None:
         assert self.proc.stderr
         for line in self.proc.stderr:
+            if line == SYNC_LINE:
+                self._synced.release()
+                continue
             with self._log_lock:
                 if self._log:
                     self._log.write(line)
@@ -127,6 +135,8 @@ class Worker:
         if not line:
             code = self.proc.wait()
             raise WorkerError(f"{self.tool} worker exited with code {code}")
+        # the log lines written before the event, e.g. its last progress line, reach the job's log first
+        self._synced.acquire(timeout=SYNC_TIMEOUT_S)
         return json.loads(line)
 
     def wait_ready(self, timeout: float) -> None:
