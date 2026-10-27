@@ -20,7 +20,9 @@ LOG_LINES = 60  # blender: end of the job log returned with the files (the scrip
 
 INSTRUCTIONS = """Generates media assets on a self-hosted NVIDIA GB10 server.
 Generating tools only queue a job and return a job_id. Then call fetch_result(job_id, target_dir, wait=...)
-to download the results; with wait=0 it returns the current state without blocking. The server runs one GPU
+to download the results; with wait=0 it returns the current state without blocking. A client may move a long
+fetch_result call to the background and report its completion later: then tell the user the job is running and
+end the turn instead of polling, and never start a second fetch_result for the same job. The server runs one GPU
 job at a time and loads the model per job, so request all variants in one call (count) instead of many calls.
 Look at generated images with the Read tool before using them.
 Speech: design_voice creates a voice from a description, speak clones a voice for de/en and 8 more languages,
@@ -282,7 +284,9 @@ def build(adapter: Adapter | None = None) -> MCPServer:
     ) -> dict:
         """Download the results of a finished job into target_dir and delete the job on the server.
         Existing files are not overwritten (a suffix _1, _2 ... is added). If the job is not done yet, returns
-        its state; call again later. Blender jobs also return the end of their log (the script's output)."""
+        its state; call again later. Blender jobs also return the end of their log (the script's output).
+        If the call continues in the background (Claude Code does this after about 2 minutes), wait for its
+        completion notice; do not poll with job_status or call fetch_result again for this job meanwhile."""
         client = adapter.client
         info, paths = client.fetch(job_id, target_dir, wait=max(0, min(wait, MAX_WAIT_S)), delete=False)
         if not paths:
