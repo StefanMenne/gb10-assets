@@ -187,9 +187,12 @@ def build(adapter: Adapter | None = None) -> MCPServer:
             "Local paths of keyframe images (max 4), spread evenly: one image is the first frame (image to "
             "video), two are first and last frame"))] = None,
         duration_s: Annotated[float | None, Field(description=(
-            "Length in seconds (1-20); default: predicted from the prompt, 5 s with several images"))] = None,
-        width: Annotated[int | None, Field(description="Multiple of 64, 256-2048; default 1536x1024 or the "
-                                                       "first image's aspect ratio")] = None,
+            "Length in seconds (1-20); default: predicted from the prompt, 5 s with several images. Memory limits "
+            "the length per size: 1536x1024 6 s, 1280x832 9 s, 1024x704 13 s, 768x512 20 s; an explicit size "
+            "with a longer duration is rejected"))] = None,
+        width: Annotated[int | None, Field(description=(
+            "Multiple of 64, 256-2048; default 1536x1024 or the first image's aspect ratio, shrunk for longer "
+            "clips to fit the memory"))] = None,
         height: Annotated[int | None, Field(description="Multiple of 64, 256-2048")] = None,
         fps: Annotated[int, Field(description="Frame rate, 12-50")] = 24,
         count: Annotated[int, Field(description="Number of variants in this job (1-8)")] = 1,
@@ -209,7 +212,8 @@ def build(adapter: Adapter | None = None) -> MCPServer:
         audio: Annotated[str, Field(description="Local path of the speech, song or sound to make the video for")],
         image: Annotated[str | None, Field(description="Local path of an image to use as the first frame")] = None,
         duration_s: Annotated[float | None, Field(description="Seconds; default: the audio, max 20")] = None,
-        width: Annotated[int | None, Field(description="Multiple of 64; default 1536x1024 or as the image")] = None,
+        width: Annotated[int | None, Field(description=(
+            "Multiple of 64; default 1536x1024 or as the image, shrunk for longer audio (768x512 fits 20 s)"))] = None,
         height: Annotated[int | None, Field(description="Multiple of 64")] = None,
         count: Annotated[int, Field(description="Number of variants in this job (1-8)")] = 1,
         seed: Annotated[int | None, Field(description="Start seed; variants use seed..seed+count-1")] = None,

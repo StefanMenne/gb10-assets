@@ -14,6 +14,9 @@ Modes, chosen by the inputs (see GenerateVideo in gb10_assets/shared/schemas.py)
                   is conformed first: 8k+1 frames, sides cropped to multiples of 32.
 Outputs: video_<seed>.mp4 (H.264 + AAC) per variant and video_<seed>.jpg with four frames of it, so a client
 that cannot play videos can still look at the result.
+
+Memory: a job must stay under MAX_GB (see memory_gb). A default size shrinks to fit the length, a predicted
+length is capped to fit the size, an explicit size and length that do not fit fail before any work.
 """
 import os
 import sys
@@ -33,6 +36,11 @@ UPSAMPLER = ROOT / "latent_upscale_models" / "ltx-2.5-latent-spatial-upscaler-x2
 DEFAULT_SIZE = (1536, 1024)
 KEYFRAMES_DURATION_S = 5.0
 MAX_FRAMES = 481  # 20 s at 24 fps
+# Peak memory of this worker on GB10 (121.6 GB unified), measured from 1024x704x193 frames (79 GB) to 1280x832x241
+# (101 GB): the weights plus activations growing with pixels x frames plus the audio growing with the length;
+# memory_gb fits the measurements within 3 GB. 1536x1024 at 10 s needs ~120 GB and runs out of memory. MAX_GB
+# leaves the system about 20 GB. Same model as ltx_memory_gb in gb10_assets/shared/schemas.py (tests compare them).
+MAX_GB = 98.0
 
 
 def unified_mem_get_info(device=None):
@@ -98,6 +106,48 @@ def frames_for(seconds, fps):
     return min(MAX_FRAMES, round(seconds * fps / 8) * 8 + 1)
 
 
+def memory_gb(width, height, frames, fps):
+    """Estimated peak memory of a variant in GB."""
+    return 51 + 0.172 * width * height * frames / 1e6 + 0.39 * frames / fps
+
+
+def max_frames(width, height, fps):
+    """Most frames (8k+1, at most MAX_FRAMES) of this size under MAX_GB."""
+    frames = MAX_FRAMES
+    while frames > 9 and memory_gb(width, height, frames, fps) > MAX_GB:
+        frames -= 8
+    return frames
+
+
+def fit_size(width, height, frames, fps):
+    """A default size scaled down (same aspect ratio, sides multiples of 64) until frames of it fit MAX_GB."""
+    scale = 1.0
+    w, h = width, height
+    while memory_gb(w, h, frames, fps) > MAX_GB and scale > 0.2:
+        scale -= 0.02
+        w, h = max(256, round(width * scale / 64) * 64), max(256, round(height * scale / 64) * 64)
+    if (w, h) != (width, height):
+        log(f"{width}x{height} with {frames} frames needs ~{memory_gb(width, height, frames, fps):.0f} GB, "
+            f"using {w}x{h}")
+    return w, h
+
+
+def check_memory(width, height, frames, fps):
+    need = memory_gb(width, height, frames, fps)
+    if need > MAX_GB:
+        raise ValueError(
+            f"{width}x{height} with {frames} frames ({frames / fps:.1f} s) needs ~{need:.0f} GB, more than the "
+            f"{MAX_GB:.0f} GB a video may use: at this size at most {(max_frames(width, height, fps) - 1) / fps:.1f} s, "
+            "or choose a smaller size")
+
+
+def audio_seconds(path):
+    import av
+
+    with av.open(str(path)) as container:
+        return container.duration / av.time_base if container.duration else MAX_FRAMES / 24
+
+
 def conform_video(src, dst):
     """Copy of src that RetakePipeline accepts: 8k+1 frames (at most MAX_FRAMES), sides cropped to multiples of
     32. Returns src itself if it already fits."""
@@ -152,7 +202,7 @@ def run(pipes, params, job_dir):
     from ltx_core.model.video_vae import get_video_chunks_number
     from ltx_pipelines.utils.constants import DISTILLED_SIGMAS
     from ltx_pipelines.utils.media_io import encode_video, get_videostream_metadata
-    from ltx_pipelines.utils.types import ImageConditioningInput
+    from ltx_pipelines.utils.types import AutoDuration, ImageConditioningInput
 
     inp = job_dir / "in"
     images = [str(inp / name) for name in params.get("images", [])]
@@ -161,7 +211,9 @@ def run(pipes, params, job_dir):
 
     if params.get("video"):
         video = conform_video(inp / params["video"], job_dir / "conformed.mp4")
-        fps = round(get_videostream_metadata(str(video)).fps)
+        meta = get_videostream_metadata(str(video))
+        fps = round(meta.fps)
+        check_memory(meta.width, meta.height, meta.frames, fps)
         regenerate = params.get("regenerate", "both")
 
         def generate(seed):
@@ -170,20 +222,33 @@ def run(pipes, params, job_dir):
                                    regenerate_video=regenerate != "audio", regenerate_audio=regenerate != "video")
     else:
         width, height = size_for(params, images[0] if images else None)
+        fixed_size = params.get("width") is not None
+
+        def fit(frames):
+            w, h = (width, height) if fixed_size else fit_size(width, height, frames, fps)
+            check_memory(w, h, frames, fps)
+            return w, h
+
         if params.get("audio"):
+            duration = min(duration or MAX_FRAMES / fps, audio_seconds(inp / params["audio"]))
+            width, height = fit(frames_for(duration, fps))
+
             def generate(seed):
                 return pipes["audio"](
                     prompt=prompt, negative_prompt="", seed=seed, height=height, width=width,
                     num_frames=None, frame_rate=fps,
                     num_inference_steps=len(DISTILLED_SIGMAS) - 1, video_guider_params=MultiModalGuiderParams(),
                     images=[ImageConditioningInput.at(p, 0, 1.0) for p in images],
-                    audio_path=str(inp / params["audio"]), audio_max_duration=duration or MAX_FRAMES / fps,
+                    audio_path=str(inp / params["audio"]), audio_max_duration=duration,
                     enhance_prompt=enhance, stage_1_sigmas=DISTILLED_SIGMAS)
         else:
-            kw = {}
             if len(images) > 1 or duration:
-                kw["num_frames"] = frames_for(duration or KEYFRAMES_DURATION_S, fps)
-            last = kw.get("num_frames", 1) - 1
+                kw = {"num_frames": frames_for(duration or KEYFRAMES_DURATION_S, fps)}
+                width, height = fit(kw["num_frames"])
+            else:  # predicted from the prompt, capped to what fits this size
+                longest = (max_frames(width, height, fps) - 1) / fps
+                kw = {"num_frames": AutoDuration(min_seconds=min(1.0, longest), max_seconds=min(20.0, longest))}
+            last = kw["num_frames"] - 1 if isinstance(kw["num_frames"], int) else 0
             # with a single image only frame 0 is used, so the predicted duration still works
             keyframes = [ImageConditioningInput.at(p, round(i * last / max(1, len(images) - 1)), 1.0)
                          for i, p in enumerate(images)]
@@ -194,6 +259,10 @@ def run(pipes, params, job_dir):
 
     names = []
     for seed in seeds(params):
+        # the registry keeps the allocator warm (DEFER); LTX sizes the VAE decode tiles from memory torch has not
+        # reserved, so the cached blocks of the previous variant left it 0 bytes for the next one
+        torch.cuda.empty_cache()
+        torch.cuda.reset_peak_memory_stats()
         t = time.time()
         with torch.inference_mode():
             result = generate(seed)
@@ -201,7 +270,8 @@ def run(pipes, params, job_dir):
             encode_video(video=result.video, fps=fps, audio=result.audio, output_path=str(path),
                          video_chunks_number=get_video_chunks_number(result.num_frames, result.tiling_config))
         names += [path.name, preview(path)]
-        log(f"{path.name}: {result.num_frames} frames ({result.num_frames / fps:.1f}s) in {time.time() - t:.0f}s")
+        log(f"{path.name}: {result.num_frames} frames ({result.num_frames / fps:.1f}s) in {time.time() - t:.0f}s, "
+            f"peak {torch.cuda.max_memory_reserved() / 1024**3:.1f} GB")
     return names
 
 

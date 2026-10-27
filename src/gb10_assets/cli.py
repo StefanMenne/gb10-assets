@@ -114,8 +114,11 @@ def main(argv: list[str] | None = None) -> None:
     vi.add_argument("prompt")
     vi.add_argument("-i", "--image", action="append", default=[],
                     help="keyframe image (repeatable, max 4): first frame, or first and last frame, ...")
-    vi.add_argument("-d", "--duration", type=float, help="seconds (1-20); default predicted from the prompt")
-    vi.add_argument("-W", "--width", type=int, help="multiple of 64; default 1536x1024 or the image's aspect")
+    vi.add_argument("-d", "--duration", type=float, help=(
+        "seconds (1-20); default predicted from the prompt. Memory limit per size: 1536x1024 6 s, 1280x832 9 s, "
+        "1024x704 13 s, 768x512 20 s"))
+    vi.add_argument("-W", "--width", type=int, help=(
+        "multiple of 64; default 1536x1024 or the image's aspect, smaller for longer clips"))
     vi.add_argument("-H", "--height", type=int)
     vi.add_argument("--fps", type=int, default=24)
     vi.add_argument("--enhance", action="store_true", help="expand the prompt with the text encoder")

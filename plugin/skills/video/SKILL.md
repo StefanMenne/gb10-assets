@@ -34,10 +34,23 @@ the change; a prompt about the change alone barely alters the video. `regenerate
 
 ## Size and length
 
-- `duration_s` 1-20; default predicted from the prompt (5 s with keyframes, the audio length for
-  `audio_to_video`)
-- default 1536x1024 or the aspect ratio of the first image; sides multiples of 64. For a quick draft use
-  768x512 and short clips, then the full size for the chosen idea
+Memory limits the length per size (measured on the GB10; 1536x1024 for 10 s runs out of memory):
+
+| Size | Longest clip at 24 fps |
+|---|---|
+| 1536x1024 or 1024x1536 (default) | 6 s |
+| 1280x832 | 9 s |
+| 1024x704 | 13 s |
+| 1024x576 | 16 s |
+| 768x512 | 20 s |
+
+- `duration_s` 1-20; default predicted from the prompt, capped to what fits the size (5 s with keyframes, the
+  audio length for `audio_to_video`)
+- default 1536x1024 or the aspect ratio of the first image; for a longer `duration_s` without a size the server
+  picks a smaller size that fits. An explicit size with a too long `duration_s` is rejected with the limit, so
+  pick a pair from the table. Sides are multiples of 64. For a quick draft use 768x512, then the final size
+- higher `fps` means more frames: at 48 fps half the length fits
+- `count` does not add memory, the variants run one after another
 - `fps` 24 (12-50); keep the `seed` of a good variant to vary only the prompt
 
 ## Building blocks from the other tools

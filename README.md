@@ -44,6 +44,11 @@ Jobs of this tool may run their own Python code, see [Blender code](#blender-cod
 
 The server keeps one model in memory at a time and switches when a job for another tool arrives.
 
+**Video length:** `ltx-video` needs about 51 GB plus memory that grows with width x height x frames, so the
+size limits the length (measured on a GB10 with 128 GB): 1536x1024 6 s, 1280x832 9 s, 1024x704 13 s, 1024x576
+16 s, 768x512 20 s at 24 fps. Without a size the server picks one that fits; an explicit size with a too long
+duration is rejected at submission.
+
 ## Server installation (GB10)
 
 ### Prerequisites

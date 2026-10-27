@@ -1,3 +1,5 @@
+import importlib.util
+
 import pytest
 from pydantic import ValidationError
 
@@ -14,6 +16,9 @@ from gb10_assets.shared.schemas import (
     Speak,
     SpeakMultilingual,
     check_file_name,
+    ltx_frames,
+    ltx_max_seconds,
+    ltx_memory_gb,
 )
 
 
@@ -119,6 +124,46 @@ def test_video_modes():
 def test_video_invalid(params):
     with pytest.raises(ValidationError):
         GenerateVideo.model_validate(params)
+
+
+@pytest.mark.parametrize("size, seconds, fits", [
+    ((1536, 1024), 6, True), ((1536, 1024), 7, False), ((1536, 1024), 10, False),  # 10 s ran out of memory
+    ((1280, 832), 9, True), ((1280, 832), 11, False), ((1024, 704), 13, True), ((768, 512), 20, True),
+])
+def test_video_memory_limit(size, seconds, fits):
+    params = {"prompt": "x", "width": size[0], "height": size[1], "duration_s": seconds}
+    if fits:
+        GenerateVideo.model_validate(params)
+    else:
+        with pytest.raises(ValidationError, match="at most"):
+            GenerateVideo.model_validate(params)
+
+
+def test_video_memory_limit_needs_size_and_length():
+    GenerateVideo(prompt="x", duration_s=20)  # default size: the worker shrinks it
+    GenerateVideo(prompt="x", width=2048, height=2048)  # predicted length: the worker caps it
+    with pytest.raises(ValidationError, match="at most"):  # several keyframes: 5 s
+        GenerateVideo(prompt="x", images=["a.png", "b.png"], width=2048, height=2048)
+    GenerateVideo(prompt="x", video="in.mp4", start_s=1, end_s=2)  # retake: checked by the worker
+
+
+def test_video_memory_model_matches_the_tool():
+    """The schema rejects early what tools/ltx-video/run.py would refuse; both must compute the same."""
+    spec = importlib.util.spec_from_file_location("ltx_run", REPO_ROOT / "tools" / "ltx-video" / "run.py")
+    run = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(run)
+    from gb10_assets.shared.schemas import LTX_MAX_GB
+    assert run.MAX_GB == LTX_MAX_GB
+    for w, h in [(1536, 1024), (1280, 832), (768, 512), (2048, 2048)]:
+        for fps in (12, 24, 50):
+            assert run.max_frames(w, h, fps) == round(ltx_max_seconds(w, h, fps) * fps) + 1
+            for seconds in (1, 5, 13.3, 20):
+                frames = run.frames_for(seconds, fps)
+                assert frames == ltx_frames(seconds, fps)
+                assert run.memory_gb(w, h, frames, fps) == ltx_memory_gb(w, h, frames, fps)
+    w, h = run.fit_size(1536, 1024, run.frames_for(20, 24), 24)
+    assert run.memory_gb(w, h, run.frames_for(20, 24), 24) <= run.MAX_GB and w % 64 == h % 64 == 0
+    assert abs(w / h - 1.5) < 0.1
 
 
 def test_image_to_3d():

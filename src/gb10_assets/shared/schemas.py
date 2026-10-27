@@ -143,6 +143,27 @@ def _multiple_of_64(v: int) -> int:
 
 VideoSide = Annotated[int, Field(ge=256, le=2048), AfterValidator(_multiple_of_64)]
 
+# LTX-2.5 memory on GB10, the same model as memory_gb in tools/ltx-video/run.py (see there; tests compare them):
+# 1536x1024 fits 6 s, 1280x832 9 s, 1024x704 13 s, 1024x576 16 s, 768x512 20 s at 24 fps
+LTX_MAX_GB = 98.0
+LTX_KEYFRAMES_S = 5.0
+
+
+def ltx_frames(seconds: float, fps: int) -> int:
+    return min(481, round(seconds * fps / 8) * 8 + 1)
+
+
+def ltx_memory_gb(width: int, height: int, frames: int, fps: int) -> float:
+    return 51 + 0.172 * width * height * frames / 1e6 + 0.39 * frames / fps
+
+
+def ltx_max_seconds(width: int, height: int, fps: int) -> float:
+    """Longest video of this size under LTX_MAX_GB."""
+    frames = 481
+    while frames > 9 and ltx_memory_gb(width, height, frames, fps) > LTX_MAX_GB:
+        frames -= 8
+    return (frames - 1) / fps
+
 
 class GenerateVideo(JobRequest):
     """LTX-2.5 (22B distilled, NVFP4): video with sound from text, keyframe images or an audio track, or a retake
@@ -161,8 +182,11 @@ class GenerateVideo(JobRequest):
     end_s: float | None = Field(None, gt=0)
     regenerate: Literal["both", "video", "audio"] = Field("both", description="Retake: which stream to regenerate")
     duration_s: float | None = Field(None, ge=1, le=20, description=(
-        "Default: predicted from the prompt (one image or none), 5 s (several images), length of audio (max 20 s)"))
-    width: VideoSide | None = Field(None, description="Default 1536x1024, or the first image's aspect ratio")
+        "Default: predicted from the prompt (one image or none, at most what fits the size), 5 s (several images), "
+        "length of audio (max 20 s). Memory limits the length per size: 1536x1024 6 s, 1280x832 9 s, "
+        "1024x704 13 s, 768x512 20 s (at 24 fps)"))
+    width: VideoSide | None = Field(None, description=(
+        "Default 1536x1024, or the first image's aspect ratio; for longer clips it shrinks to fit the memory"))
     height: VideoSide | None = None
     fps: int = Field(24, ge=12, le=50, description="Frame rate; a retake keeps the frame rate of the video")
     enhance_prompt: bool = Field(False, description="Let the Gemma text encoder expand a short prompt first")
@@ -182,6 +206,15 @@ class GenerateVideo(JobRequest):
             raise ValueError("audio to video takes at most one image (the first frame)")
         if (self.width is None) != (self.height is None):
             raise ValueError("give both width and height or neither")
+        seconds = self.duration_s or (LTX_KEYFRAMES_S if len(self.images) > 1 and self.audio is None else None)
+        if self.video is None and self.width is not None and seconds:
+            need = ltx_memory_gb(self.width, self.height, ltx_frames(seconds, self.fps), self.fps)
+            if need > LTX_MAX_GB:
+                raise ValueError(
+                    f"{self.width}x{self.height} for {seconds:g} s at {self.fps} fps needs ~{need:.0f} GB, more than "
+                    f"the {LTX_MAX_GB:.0f} GB a video may use: at this size at most "
+                    f"{ltx_max_seconds(self.width, self.height, self.fps):.1f} s, or choose a smaller size "
+                    "(768x512 fits 20 s)")
         return self
 
 
