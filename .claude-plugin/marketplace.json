@@ -1,0 +1,15 @@
+{
+  "name": "gb10-assets",
+  "description": "Generate images, videos, speech and 3D assets on a self-hosted NVIDIA GB10 system",
+  "owner": {
+    "name": "Stefan Menne"
+  },
+  "plugins": [
+    {
+      "name": "gb10-assets",
+      "description": "MCP tools and skills for a gb10-assets server: images, image editing, voices, video with sound, image to 3D and Blender scripts",
+      "source": "./plugin",
+      "category": "productivity"
+    }
+  ]
+}

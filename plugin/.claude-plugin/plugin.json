@@ -1,0 +1,26 @@
+{
+  "name": "gb10-assets",
+  "version": "0.1.0",
+  "description": "Generate images, videos, speech and 3D assets on a self-hosted NVIDIA GB10 system: the gb10-assets MCP tools plus skills for game figures and voice lines",
+  "author": {
+    "name": "Stefan Menne"
+  },
+  "homepage": "https://github.com/StefanMenne/gb10-assets",
+  "repository": "https://github.com/StefanMenne/gb10-assets",
+  "license": "MIT",
+  "keywords": ["gb10", "dgx-spark", "image-generation", "text-to-speech", "video", "3d", "blender"],
+  "userConfig": {
+    "url": {
+      "type": "string",
+      "title": "Server URL",
+      "description": "Address of the gb10-assets server, e.g. http://192.168.178.20:8750 (GB10_ASSETS_URL)"
+    },
+    "token": {
+      "type": "string",
+      "title": "Token",
+      "description": "GB10_ASSETS_TOKEN from the server's .env; leave empty for a server without authentication",
+      "sensitive": true,
+      "default": ""
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "gb10-assets": {
+      "command": "uvx",
+      "args": ["--from", "gb10-assets[client] @ git+https://github.com/StefanMenne/gb10-assets", "gb10-assets", "mcp"],
+      "env": {
+        "GB10_ASSETS_URL": "${user_config.url}",
+        "GB10_ASSETS_TOKEN": "${user_config.token}"
+      }
+    }
+  }
+}

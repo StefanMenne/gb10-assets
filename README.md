@@ -152,6 +152,21 @@ curl -s -H "$H" "$GB10_ASSETS_URL/jobs/<id>"                                    
 curl -s -H "$H" -o fox.png "$GB10_ASSETS_URL/jobs/<id>/files/<output-name>.png"
 ```
 
+### Claude Code plugin
+
+The plugin gives Claude Code all tools as MCP tools (`generate_image`, `image_to_3d`, `blender`, ...) plus skills
+for animated game figures, voice lines and troubleshooting. It needs only [uv](https://docs.astral.sh/uv/); the
+MCP server is started with `uvx` from this repo, so the client installation above is optional. In Claude Code:
+
+```
+/plugin install gb10-assets --marketplace StefanMenne/gb10-assets
+```
+
+On older versions: `/plugin marketplace add StefanMenne/gb10-assets`, then `/plugin install gb10-assets@gb10-assets`.
+The installation asks for the server URL and the token (stored as a secret; leave it empty with
+`init_without_token`); change them later with `claude plugin configure gb10-assets`. Restart Claude Code, then
+`/mcp` shows the `gb10-assets` server. Ask for example "make an animated low-poly fox for my game".
+
 ## Token
 
 The server is reachable from every device in the network. The token is its password: every request except

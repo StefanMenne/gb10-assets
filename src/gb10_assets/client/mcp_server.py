@@ -1,4 +1,4 @@
-"""MCP server over stdio, started by Claude Code as a child process (see .mcp.json).
+"""MCP server over stdio, started by Claude Code as a child process (see plugin/.mcp.json).
 
 Long jobs follow submit -> job_id -> job_status -> fetch_result. Generating tools return immediately with a
 job id; fetch_result blocks only as long as its ``wait`` argument allows.
