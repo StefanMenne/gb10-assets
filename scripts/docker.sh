@@ -8,7 +8,7 @@
 #   scripts/docker.sh install TOOL ...    install tools (environment + weights) with the image, --all: every tool
 #   scripts/docker.sh update              reinstall the installed tools that changed (after build)
 #   scripts/docker.sh uninstall TOOL ...  delete a tool's environment and weights
-#   scripts/docker.sh list                tools and whether they are installed
+#   scripts/docker.sh status              container state, server version and queue, installed tools (alias: list)
 set -euo pipefail
 ENV_INSTALL_DIR=${INSTALL_DIR:-}
 source "$(dirname "$0")/lib/config.sh"
@@ -93,7 +93,7 @@ case $cmd in
   install | update)
     need_env; make_dirs
     [[ $cmd == install ]] || set -- --outdated
-    [[ $# -gt 0 ]] || { echo "usage: $0 install TOOL ... | --all   (tools: $0 list)" >&2; exit 1; }
+    [[ $# -gt 0 ]] || { echo "usage: $0 install TOOL ... | --all   (tools: $0 status)" >&2; exit 1; }
     # with the GPU like the server: compiling CUDA extensions (ltx-video) links the driver's libcuda. HF_TOKEN
     # (gated models) only goes to this container, the server's does not get it (compose.yaml)
     HF_TOKEN=${HF_TOKEN:-$(env_value HF_TOKEN)} docker compose run --rm --no-deps -e HF_TOKEN server scripts/install.sh "$@"
@@ -109,11 +109,25 @@ case $cmd in
       echo "uninstalled $t"
     done
     ;;
-  list)
+  status | list)
+    state=$(docker compose ps --all --format '{{.State}}, {{.Status}}' server 2>/dev/null || true)
+    echo "container: ${state:-not created (start: $0 up)}"
+    port=${GB10_ASSETS_PORT:-$(env_value GB10_ASSETS_PORT)}
+    if health=$(curl -fsS --max-time 3 "http://localhost:${port:-8750}/health" 2>/dev/null); then
+      # {"status":"ok","api_version":1,"version":"0.1.0","running":null,"queued":0,"worker":null}
+      field() { sed -n "s/.*\"$1\":\"\{0,1\}\([^\",}]*\).*/\1/p" <<< "$health" | sed 's/^null$/-/'; }
+      server=$(field version)
+      echo "server:    version $server, API v$(field api_version)" \
+           "$([[ $server == "$VERSION" ]] || echo "(repo: $VERSION, rebuild: $0 build && $0 up)")"
+      echo "jobs:      running $(field running), queued $(field queued), worker $(field worker)"
+    else
+      echo "server:    not reachable on port ${port:-8750}"
+    fi
+    echo
     scripts/install.sh --list
     ;;
   *)
-    sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '/^set -euo/q; 2,$s/^# \{0,1\}//p' "$0"
     [[ -z $cmd ]] || exit 1
     ;;
 esac

@@ -263,7 +263,7 @@ then replace `MODELS_DIR` with `INSTALL_DIR=./installed` in `.env` and run `scri
 ```sh
 scripts/docker.sh install flux2-klein ltx-video   # inside the container; --all: every tool
 scripts/install.sh flux2-klein                    # the same directly on the host (needs uv)
-scripts/docker.sh list                            # what is installed
+scripts/docker.sh status                          # server state and what is installed
 ```
 
 Each tool gets a directory in `INSTALL_DIR`:
