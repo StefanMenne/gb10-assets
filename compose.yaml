@@ -14,6 +14,7 @@ services:
     environment:
       GB10_ASSETS_TOKEN: ${GB10_ASSETS_TOKEN:?set GB10_ASSETS_TOKEN in .env (scripts/docker.sh init creates one)}
       BLENDER_CODE: ${BLENDER_CODE:-1}
+      DASHBOARD_DETAILS: ${DASHBOARD_DETAILS:-0}
       WORKER_IDLE_S: ${WORKER_IDLE_S:-0}
       MEMORY_WAIT_S: ${MEMORY_WAIT_S:-600}
       WORKER_READY_S: ${WORKER_READY_S:-1800}

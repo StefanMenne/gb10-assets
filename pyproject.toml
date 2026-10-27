@@ -11,7 +11,7 @@ dependencies = ["pydantic>=2.7,<3"]
 [project.optional-dependencies]
 # keep the client light: no torch, no image libraries
 client = ["httpx>=0.27,<1", "mcp>=2.3,<3"]
-server = ["fastapi>=0.115", "uvicorn>=0.30", "python-multipart>=0.0.9"]
+server = ["fastapi>=0.115", "uvicorn>=0.30", "python-multipart>=0.0.9", "nvidia-ml-py>=12"]
 
 [project.scripts]
 gb10-assets = "gb10_assets.cli:main"

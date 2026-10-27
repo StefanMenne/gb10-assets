@@ -3,7 +3,8 @@
 Sticky worker: after a job the worker process stays alive if the next queued job uses the same tool, or for
 ``worker_idle_s`` seconds waiting for one; otherwise it exits and frees the GPU memory. Before a worker starts,
 the queue waits (up to ``memory_wait_s``) for enough free memory. Processes it does not own, such as an
-LLM server, are never touched.
+LLM server, are never touched. Job start and end, model loading and unloading go to the event log of the
+dashboard (monitor.py).
 """
 from __future__ import annotations
 
@@ -19,6 +20,7 @@ from typing import Callable
 
 from ..shared.schemas import JobInfo, JobState
 from .config import Settings
+from .monitor import EventLog, summarize_params, weight_models
 from .runners import TOOLS, JobError, Worker, WorkerError, mem_available_gb
 
 LOG_TAIL = 20
@@ -65,11 +67,13 @@ class JobQueue:
         self._pending: deque[str] = deque()
         self._running: str | None = None
         self._worker: Worker | None = None
+        self._worker_loaded: float | None = None  # wall time the model was loaded; None while loading
         self._cond = threading.Condition()
         self._stopping = False
         self._thread: threading.Thread | None = None
         self._last_cleanup = 0.0
         self.s.jobs_dir.mkdir(parents=True, exist_ok=True)
+        self.events = EventLog(self.s.jobs_dir / "events.jsonl")
         self._restore()
 
     # ------------------------------------------------------------------ public API (any thread)
@@ -152,6 +156,24 @@ class JobQueue:
             return {"running": self._running, "queued": len(self._pending),
                     "worker": self._worker.tool if self._worker else None}
 
+    def overview(self) -> dict:
+        """For the dashboard: running job, queued jobs per tool, the worker process."""
+        with self._cond:
+            running = self._jobs[self._running] if self._running else None
+            queued: dict[str, int] = {}
+            for job_id in self._pending:
+                tool = self._jobs[job_id].info.tool
+                queued[tool] = queued.get(tool, 0) + 1
+            w = self._worker
+            return {
+                "running": {"id": running.info.id, "tool": running.info.tool,
+                            "started": running.info.started_at.timestamp()} if running else None,
+                "queued": queued,
+                "worker": {"tool": w.tool, "pid": getattr(w, "pid", None), "loaded": self._worker_loaded,
+                           "idle_since": None if self._running else time.time() - (time.monotonic() - w.idle_since)}
+                if w else None,
+            }
+
     # ------------------------------------------------------------------ queue thread
 
     def _info(self, job: Job) -> JobInfo:
@@ -183,6 +205,9 @@ class JobQueue:
                 job.info.started_at = _now()
                 self._running = job.info.id
                 job.save()
+            self.events.add("job_start", job=job.info.id, tool=job.info.tool,
+                            waited_s=round((job.info.started_at - job.info.created_at).total_seconds(), 1),
+                            params=summarize_params(job.params) if self.s.dashboard_details else None)
             try:
                 outputs = self._run(job)
                 result = (JobState.done, outputs, None)
@@ -191,18 +216,21 @@ class JobQueue:
                 result = (JobState.cancelled, None, "cancelled") if cancelled else (JobState.failed, None, str(e))
                 job.log(f"{result[0].value}: {result[2]}")
                 if not isinstance(e, JobError):  # after a job error the worker is still up with its model loaded
-                    self._stop_worker()
+                    self._stop_worker("job cancelled" if cancelled else "worker failed")
             with self._cond:
                 self._finish(job, *result)
                 self._running = None
+                self.events.add("job_end", job=job.info.id, tool=job.info.tool, state=result[0].value,
+                                seconds=round((job.info.finished_at - job.info.started_at).total_seconds(), 1),
+                                outputs=result[1], error=result[2])
                 if self.s.worker_idle_s <= 0 and not self._next_uses(job.info.tool):
-                    self._stop_worker()
-        self._stop_worker()
+                    self._stop_worker("no queued job for this tool")
+        self._stop_worker("server stopped")
 
     def _run(self, job: Job) -> list[str]:
         worker = self._worker
         if worker and (worker.tool != job.info.tool or not worker.alive()):
-            self._stop_worker()
+            self._stop_worker(f"switching to {job.info.tool}" if worker.alive() else "worker exited")
             worker = None
         if worker is None:
             worker = self._start_worker(job)
@@ -226,23 +254,34 @@ class JobQueue:
                 logged = round(free)
             time.sleep(min(10.0, max(0.05, deadline - time.monotonic())))
         job.log(f"starting {spec.name} worker ({free:.0f} GB available)")
-        worker = self._worker_factory(spec, self.s)
-        with self._cond:
-            self._worker = worker
-            if job.info.error == "cancelled":  # cancelled before there was a worker to kill
-                raise WorkerError("cancelled")
-        worker.set_log(job.log_path)
+        self.events.add("load_start", tool=spec.name, models=weight_models(self.s.install_dir, spec.name),
+                        mem_free_gb=round(free, 1))
         t = time.monotonic()
-        worker.wait_ready(self.s.worker_ready_s)
+        try:
+            worker = self._worker_factory(spec, self.s)
+            with self._cond:
+                self._worker, self._worker_loaded = worker, None
+                if job.info.error == "cancelled":  # cancelled before there was a worker to kill
+                    raise WorkerError("cancelled")
+            worker.set_log(job.log_path)
+            worker.wait_ready(self.s.worker_ready_s)
+        except WorkerError as e:
+            self.events.add("load_end", tool=spec.name, seconds=round(time.monotonic() - t, 1), error=str(e))
+            raise
+        with self._cond:
+            self._worker_loaded = time.time()
         job.log(f"model loaded in {time.monotonic() - t:.0f}s")
+        self.events.add("load_end", tool=spec.name, seconds=round(time.monotonic() - t, 1),
+                        mem_free_gb=round(self._mem_gb(), 1))
         if job.info.error == "cancelled":
             raise WorkerError("cancelled")
         return worker
 
-    def _stop_worker(self) -> None:
+    def _stop_worker(self, reason: str) -> None:
         with self._cond:
             worker, self._worker = self._worker, None
         if worker:
+            self.events.add("unload", tool=worker.tool, reason=reason)
             worker.stop()
 
     def _next_uses(self, tool: str) -> bool:
@@ -252,6 +291,7 @@ class JobQueue:
         w = self._worker
         if w and (not w.alive() or time.monotonic() - w.idle_since > self.s.worker_idle_s):
             self._worker = None
+            self.events.add("unload", tool=w.tool, reason="idle timeout" if w.alive() else "worker exited")
             threading.Thread(target=w.stop, daemon=True).start()
 
     def _cleanup(self) -> None:

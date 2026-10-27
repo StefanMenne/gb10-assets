@@ -80,6 +80,22 @@ curl http://<gb10-host>:8750/health
 # {"status":"ok","api_version":1,"version":"0.1.0","running":null,"queued":0,"worker":null}
 ```
 
+### Dashboard
+
+`http://<gb10-host>:8750/dashboard` in any browser shows what the GB10 is doing, refreshed every 2 seconds:
+
+- **System:** GPU utilization, temperature, power and clock (NVML), unified memory split into the worker, other
+  processes, page cache and free memory, CPU, swap and disk space, as charts over the last hour. A band under the
+  memory chart shows which tool's weights were loaded when.
+- **Tools:** one row per tool with its state (running, loading, loaded, queued), the memory of its worker
+  (process and GPU memory), how much of its weights is still in the page cache (a reload from there takes
+  seconds instead of minutes), the last load time, the jobs of the last 24 hours and the last job.
+- **Event log:** job start and end, loading and releasing of weights, with the job parameters when
+  `DASHBOARD_DETAILS=1` (prompts cut to 160 characters, own Blender code only as its length). It is kept in
+  `jobs/events.jsonl`.
+
+The dashboard needs no token and cannot change anything; everyone who can reach the port can open it.
+
 ## Client installation
 
 The client needs two values from the server:
@@ -218,6 +234,7 @@ the token. Docker Compose reads it automatically; after editing, run `scripts/do
 | `GB10_UID`, `GB10_GID` | your user (`init`) | the container runs as this user, so the files in `INSTALL_DIR` and `JOBS_DIR` belong to you |
 | `HF_TOKEN` | empty | Hugging Face token, only needed for gated models; used by `install`/`update` only |
 | `BLENDER_CODE` | `1` | `0`: the `blender` tool runs only its bundled scripts, no code sent with a job ([Blender code](#blender-code)) |
+| `DASHBOARD_DETAILS` | `0` | `1`: the [dashboard](#dashboard) event log shows the job parameters (prompts cut to 160 characters) |
 | `WORKER_IDLE_S`, `MEMORY_WAIT_S`, `WORKER_READY_S`, `JOB_TTL_H` | see `.env.example` | queue tuning |
 
 **Tools in another directory**, for example on a second disk: set `INSTALL_DIR=/data/gb10-tools` in `.env`.
@@ -235,7 +252,7 @@ Absolute paths, `~/...` and paths relative to the repo directory work. Compose m
 | `install TOOL ...` / `install --all` | install tools: environment and model weights, see [Tools](#tools) |
 | `update` | reinstall the installed tools whose definition changed, after `build` |
 | `uninstall TOOL ...` | delete a tool's directory (environment and weights), after a confirmation |
-| `list` | all tools and their state: installed, outdated, incomplete, not installed |
+| `status` (`list`) | container state, server version, queue and dashboard address, then all tools and their state: installed, outdated, incomplete, not installed |
 
 The script wraps plain Docker Compose: `docker compose build`, `docker compose up -d` and so on work too.
 

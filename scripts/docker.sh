@@ -120,6 +120,7 @@ case $cmd in
       echo "server:    version $server, API v$(field api_version)" \
            "$([[ $server == "$VERSION" ]] || echo "(repo: $VERSION, rebuild: $0 build && $0 up)")"
       echo "jobs:      running $(field running), queued $(field queued), worker $(field worker)"
+      echo "dashboard: http://$(hostname):${port:-8750}/dashboard"
     else
       echo "server:    not reachable on port ${port:-8750}"
     fi

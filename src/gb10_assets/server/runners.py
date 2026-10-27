@@ -153,6 +153,10 @@ class Worker:
             raise JobError(ev.get("message", "job failed"))
         raise WorkerError(ev.get("message", f"unexpected event {ev}"))
 
+    @property
+    def pid(self) -> int:
+        return self.proc.pid
+
     def alive(self) -> bool:
         return self.proc.poll() is None
 

@@ -1,7 +1,9 @@
-"""HTTP API (FastAPI). Everything except /health requires ``Authorization: Bearer $GB10_ASSETS_TOKEN``
-(unless GB10_ASSETS_TOKEN=none, then any request is accepted).
+"""HTTP API (FastAPI). Everything except /health and the dashboard requires
+``Authorization: Bearer $GB10_ASSETS_TOKEN`` (unless GB10_ASSETS_TOKEN=none, then any request is accepted).
 
     GET    /health                     API version, queue state (no auth, used for the client version check)
+    GET    /dashboard                  monitoring page for the browser (no auth, read only)
+    GET    /dashboard/data?since=T     its data: system metrics after time T, tools, event log (no auth)
     GET    /tools                      tool names and their parameter JSON schemas
     POST   /jobs                       multipart: field "request" = SubmitJob JSON, files "files" = inputs
     GET    /jobs                       all jobs
@@ -15,27 +17,33 @@ from __future__ import annotations
 import secrets
 import shutil
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 from pydantic import ValidationError
 
 from .. import __version__
 from ..shared.schemas import REQUESTS, BlenderScript, Health, JobInfo, SubmitJob, check_file_name
 from .config import Settings
+from .monitor import Monitor
 from .queue import JobQueue
 from .runners import TOOLS, install_problem
 
 MAX_UPLOAD_BYTES = 512 * 1024**2
+DASHBOARD_HTML = Path(__file__).with_name("dashboard.html")
 
 
 def create_app(settings: Settings, queue: JobQueue | None = None) -> FastAPI:
     queue = queue or JobQueue(settings)
+    monitor = Monitor(settings, queue)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         queue.start()
+        monitor.start()
         yield
+        monitor.stop()
         queue.shutdown()
 
     app = FastAPI(title="gb10-assets", version=__version__, lifespan=lifespan)
@@ -58,6 +66,14 @@ def create_app(settings: Settings, queue: JobQueue | None = None) -> FastAPI:
     @app.get("/health")
     def health() -> Health:
         return Health(version=__version__, **queue.status())
+
+    @app.get("/dashboard", response_class=HTMLResponse, include_in_schema=False)
+    def dashboard() -> str:
+        return DASHBOARD_HTML.read_text()
+
+    @app.get("/dashboard/data")
+    def dashboard_data(since: float = 0.0) -> dict:
+        return monitor.dashboard(since)
 
     @app.get("/tools", dependencies=[Depends(auth)])
     def tools() -> dict:
