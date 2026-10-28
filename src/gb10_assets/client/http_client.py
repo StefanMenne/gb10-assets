@@ -30,8 +30,11 @@ class VersionMismatch(ApiError):
 
 def upload_name(path: Path, taken: set[str]) -> str:
     """A flat, safe, unique file name for an uploaded input."""
-    stem = re.sub(r"[^A-Za-z0-9._-]", "_", path.stem).strip("._-")[:80] or "input"
-    suffix = re.sub(r"[^A-Za-z0-9.]", "", path.suffix)[:10]
+    # split by hand: pathlib's suffix of names like "..png" differs between Python versions
+    dot = path.name.rfind(".")
+    stem, suffix = (path.name[:dot], path.name[dot:]) if 0 < dot < len(path.name) - 1 else (path.name, "")
+    stem = re.sub(r"[^A-Za-z0-9._-]", "_", stem).strip("._-")[:80] or "input"
+    suffix = re.sub(r"[^A-Za-z0-9.]", "", suffix)[:10]
     name, k = f"{stem}{suffix}", 1
     while name in taken:
         name, k = f"{stem}_{k}{suffix}", k + 1
