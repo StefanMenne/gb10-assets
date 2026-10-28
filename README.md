@@ -1,7 +1,5 @@
 # gb10-assets
 
-> **Work in progress:** this repo is still under construction and not usable yet.
-
 Self-hosted generative asset pipeline (image, 3D, video, speech, music) for NVIDIA DGX Spark, ASUS Ascent GX10
 and other GB10 systems.
 
@@ -17,6 +15,10 @@ Clients talk to the server via REST API, MCP or the Claude Code plugin (skills).
 for their free licenses.
 
 ![Architecture: GitHub repository, client with Claude Code plugin and MCP server, GB10 system with Docker container](docs/architecture.png)
+
+The server's [dashboard](#dashboard) shows GPU, memory and tool state and an event log of the jobs:
+
+![Dashboard: GPU utilization, unified memory, CPU, swap and disk, the installed tools with their memory and jobs, and the event log](docs/dashboard.png)
 
 ## Models
 
