@@ -85,7 +85,8 @@ def test_dashboard_shows_loaded_worker(settings):
     queue = make_queue(settings, job_seconds=2)
     with TestClient(create_app(settings, queue)) as client:
         job_id = submit(client, {"prompt": "fox"}).json()["id"]
-        wait_for(lambda: queue.overview()["running"] is not None)
+        # a job is running before its worker exists and has loaded: wait for the loaded worker
+        wait_for(lambda: (queue.overview()["worker"] or {}).get("loaded") is not None)
         Monitor(settings, queue).sample()
         overview = queue.overview()
         assert overview["running"]["id"] == job_id and overview["worker"]["tool"] == "flux2-klein"
