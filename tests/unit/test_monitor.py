@@ -7,6 +7,7 @@ from test_server import AUTH, make_queue, submit
 
 from gb10_assets.server.app import create_app
 from gb10_assets.server.monitor import EVENTS_KEPT, EventLog, Monitor, _PageCache, summarize_params
+from gb10_assets.server.power import HELPER_FILE, REQUEST_FILE, IdleShutdown, Power
 
 
 @pytest.fixture
@@ -102,3 +103,69 @@ def test_page_cache_scan(tmp_path):
     f.read_bytes()
     size, cached = _PageCache().scan(tmp_path / "w")
     assert size == 300_000 and 0 <= cached <= size
+
+
+@pytest.fixture
+def helper(settings):
+    settings.jobs_dir.mkdir(parents=True, exist_ok=True)
+    (settings.jobs_dir / HELPER_FILE).write_text("installed")
+
+
+def test_shutdown_needs_helper(api, settings):
+    assert api.get("/dashboard/data").json()["power"]["installed"] is False
+    assert api.post("/shutdown", headers=AUTH).status_code == 409
+    assert not (settings.jobs_dir / REQUEST_FILE).exists()
+
+
+def test_shutdown_request(api, settings, helper):
+    assert api.post("/shutdown").status_code == 401
+    r = api.post("/shutdown", headers=AUTH)
+    assert r.status_code == 202 and r.json()["requested"] is not None
+    assert (settings.jobs_dir / REQUEST_FILE).read_text() == "dashboard\n"
+    event = api.app.state.queue.events.recent()[-1]
+    assert event["kind"] == "shutdown" and event["reason"] == "dashboard"
+
+
+def test_idle_setting_is_kept(api, settings, helper):
+    assert api.put("/shutdown/idle", json={"enabled": True, "minutes": 30}).status_code == 401
+    assert api.put("/shutdown/idle", headers=AUTH, json={"enabled": True, "minutes": 0}).status_code == 422
+    power = api.put("/shutdown/idle", headers=AUTH, json={"enabled": True, "minutes": 30}).json()
+    assert power["installed"] and power["enabled"] and power["minutes"] == 30
+    assert Power(settings, api.app.state.queue).idle == IdleShutdown(enabled=True, minutes=30)
+
+
+def test_idle_shutdown(settings, helper):
+    now = [1000.0]
+    queue = make_queue(settings)
+    power = Power(settings, queue, clock=lambda: now[0])
+    power.set_idle(IdleShutdown(enabled=True, minutes=10))
+    now[0] += 599
+    power.check()
+    assert not (settings.jobs_dir / REQUEST_FILE).exists()
+    queue.status = lambda: {"running": "job", "queued": 0, "worker": None}  # a job resets the idle time
+    power.check()
+    assert power.state()["idle_since"] is None
+    queue.status = lambda: {"running": None, "queued": 0, "worker": None}
+    now[0] += 599
+    power.check()
+    assert not (settings.jobs_dir / REQUEST_FILE).exists()
+    now[0] += 1
+    power.check()
+    assert (settings.jobs_dir / REQUEST_FILE).read_text() == "no job for 10 min\n"
+
+
+def test_no_idle_shutdown_without_helper(settings):
+    now = [0.0]
+    power = Power(settings, make_queue(settings), clock=lambda: now[0])
+    settings.jobs_dir.mkdir(parents=True, exist_ok=True)
+    power.set_idle(IdleShutdown(enabled=True, minutes=1))
+    now[0] += 3600
+    power.check()
+    assert not (settings.jobs_dir / REQUEST_FILE).exists()
+
+
+def test_stale_request_dropped_at_start(settings):
+    settings.jobs_dir.mkdir(parents=True)
+    (settings.jobs_dir / REQUEST_FILE).write_text("dashboard\n")
+    Power(settings, make_queue(settings))
+    assert not (settings.jobs_dir / REQUEST_FILE).exists()

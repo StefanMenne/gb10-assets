@@ -71,6 +71,12 @@ select { margin-left: auto; background: var(--card); color: var(--text); border:
 .kv { display: inline-block; margin: 1px 10px 1px 0; }
 .kv b { font-weight: 500; color: var(--muted); }
 .kv q { quotes: "\201C" "\201D"; }
+#power:not([hidden]) { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; width: 100%; font-size: 13px; }
+#power label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+#power input[type=number] { width: 70px; background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 3px 6px; font: inherit; }
+#power button { margin-left: auto; background: var(--card); color: var(--bad); border: 1px solid color-mix(in srgb, var(--bad) 50%, var(--border)); border-radius: 6px; padding: 4px 12px; font: inherit; font-weight: 600; cursor: pointer; }
+#power button:hover { background: color-mix(in srgb, var(--bad) 12%, var(--card)); }
+#power button:disabled { opacity: .5; cursor: default; }
 </style>
 </head>
 <body>
@@ -80,6 +86,12 @@ select { margin-left: auto; background: var(--card); color: var(--text); border:
     <span class="muted" id="gpu-name"></span>
     <span class="muted small" id="uptime"></span>
     <span id="live">connecting…</span>
+    <div id="power" hidden>
+      <label><input type="checkbox" id="idle-on"> Shut down after</label>
+      <input type="number" id="idle-min" min="1" max="10080" step="1" aria-label="minutes without jobs"> min without jobs
+      <span class="small" id="power-note"></span>
+      <button id="shutdown" type="button">Shut down</button>
+    </div>
   </header>
 
   <div class="grid">
@@ -304,12 +316,14 @@ function details(ev) {
       return ev.error ? kv("error", `<span class="bad">${esc(ev.error)}</span>`)
         : kv("loaded in", dur(ev.seconds)) + kv("available after", `${ev.mem_free_gb} GB`);
     case "unload":
+    case "shutdown":
       return kv("reason", esc(ev.reason));
   }
   return "";
 }
 const KIND = {job_start: ["job start", ""], job_end: ["job end", ""], load_start: ["loading weights", "warn"],
-              load_end: ["weights loaded", "warn"], unload: ["weights released", "muted"]};
+              load_end: ["weights loaded", "warn"], unload: ["weights released", "muted"],
+              shutdown: ["shutdown", "bad"]};
 
 function renderEvents(events) {
   const filter = $("log-filter").value;
@@ -318,10 +332,80 @@ function renderEvents(events) {
     const [label, cls] = KIND[ev.kind];
     const kindCls = ev.kind === "job_end" ? (ev.state === "done" ? "ok" : ev.state === "failed" ? "bad" : "muted")
       : ev.kind === "load_end" && ev.error ? "bad" : cls;
-    return `<tr><td>${clock(Date.parse(ev.time))}</td><td class="tool">${dot(ev.tool)}${esc(ev.tool)}</td>
+    return `<tr><td>${clock(Date.parse(ev.time))}</td><td class="tool">${ev.tool ? dot(ev.tool) + esc(ev.tool) : ""}</td>
       <td class="${kindCls}" style="white-space:nowrap">${label}</td><td>${details(ev)}</td></tr>`;
   }).join("") || `<tr><td class="muted">no events yet</td></tr>`;
 }
+
+// ------------------------------------------------------------------------------------------- shutdown
+const TOKEN_KEY = "gb10-assets-token";
+function storedToken() { try { return localStorage.getItem(TOKEN_KEY) || ""; } catch { return ""; } }
+function storeToken(t) { try { t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY); } catch {} }
+
+// a request that needs the token (GB10_ASSETS_TOKEN); asks for it once, the browser keeps it. null: no token given
+async function send(method, path, body) {
+  let wrong = false;
+  for (;;) {
+    let token = storedToken();
+    if (latest && latest.server.auth && !token) {
+      token = prompt((wrong ? "Wrong token. " : "") + "Token (GB10_ASSETS_TOKEN in the server's .env):");
+      if (!token) return null;
+      storeToken(token.trim());
+      token = token.trim();
+    }
+    const headers = token ? {Authorization: `Bearer ${token}`} : {};
+    if (body) headers["Content-Type"] = "application/json";
+    const r = await fetch(path, {method, headers, body: body && JSON.stringify(body), cache: "no-store"});
+    if (r.status === 401) { storeToken(""); wrong = true; continue; }
+    if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
+    return r.json();
+  }
+}
+
+let powerBusy = false;
+function renderPower(p) {
+  $("power").hidden = !p.installed;
+  if (!p.installed) return;
+  const on = $("idle-on"), min = $("idle-min"), note = $("power-note");
+  if (!powerBusy && document.activeElement !== min) { on.checked = p.enabled; min.value = p.minutes; }
+  const now = Date.now() / 1000;
+  if (p.requested) {
+    // the host helper deletes the request file right away; if it stays, the helper is missing
+    note.innerHTML = now - p.requested > 15
+      ? `<span class="bad">shutdown requested, but the host does not react (systemctl status gb10-assets-shutdown.path)</span>`
+      : `<span class="warn">shutting down…</span>`;
+  } else if (p.enabled) {
+    note.innerHTML = p.idle_since == null ? `<span class="muted">jobs running</span>`
+      : `<span class="muted">shutdown in ${dur(Math.max(0, p.idle_since + p.minutes * 60 - now))}</span>`;
+  } else note.textContent = "";
+  $("shutdown").disabled = !!p.requested && now - p.requested <= 15;
+}
+
+async function powerAction(fn) {
+  powerBusy = true;
+  try {
+    const p = await fn();
+    if (p) renderPower(p);
+  } catch (e) {
+    alert(`Failed: ${e.message}`);
+  } finally {
+    powerBusy = false;
+    if (lastData) renderPower(lastData.power);
+  }
+}
+
+function saveIdle() {
+  const minutes = Math.round(Number($("idle-min").value));
+  if (!(minutes >= 1 && minutes <= 10080)) { alert("Minutes: 1 to 10080"); return renderPower(lastData.power); }
+  powerAction(() => send("PUT", "shutdown/idle", {enabled: $("idle-on").checked, minutes}));
+}
+$("idle-on").onchange = saveIdle;
+$("idle-min").onchange = saveIdle;
+$("shutdown").onclick = () => {
+  const running = latest && latest.tools.some(t => t.running || t.queued);
+  if (confirm(running ? "Jobs are running or queued and will be lost. Shut down the GB10 now?" : "Shut down the GB10 now?"))
+    powerAction(() => send("POST", "shutdown"));
+};
 
 // ------------------------------------------------------------------------------------------- polling
 let lastData = null;
@@ -341,6 +425,7 @@ async function poll() {
     if (d.now && d.now.mem) { renderTop(d); drawCharts(); }
     renderTools(d.tools);
     renderEvents(d.events);
+    renderPower(d.power);
     $("log-note").textContent = d.server.details ? "" : "job parameters hidden (DASHBOARD_DETAILS=0)";
     $("live").textContent = `updated ${clock(Date.now())}`;
     $("live").classList.remove("down");

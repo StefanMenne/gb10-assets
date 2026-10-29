@@ -9,6 +9,8 @@
 #   scripts/docker.sh update              reinstall the installed tools that changed (after build)
 #   scripts/docker.sh uninstall TOOL ...  delete a tool's environment and weights
 #   scripts/docker.sh status              container state, server version and queue, installed tools (alias: list)
+#   scripts/docker.sh install-shutdown    let the dashboard shut down the host (systemd units, sudo)
+#   scripts/docker.sh uninstall-shutdown  remove them again
 set -euo pipefail
 ENV_INSTALL_DIR=${INSTALL_DIR:-}
 source "$(dirname "$0")/lib/config.sh"
@@ -29,11 +31,17 @@ confirm() {
   [[ $answer == [yY] || $answer == [yY][eE][sS] ]]
 }
 
+jobs_dir() {
+  local jobs; jobs=$(env_value JOBS_DIR)
+  abs_path "${jobs:-jobs}"
+}
+
 # create the bind-mount directories as the host user; Docker would create missing ones owned by root
 make_dirs() {
-  local jobs; jobs=$(env_value JOBS_DIR)
-  mkdir -p "$INSTALL_DIR" "$(abs_path "${jobs:-jobs}")"
+  mkdir -p "$INSTALL_DIR" "$(jobs_dir)"
 }
+
+UNIT=gb10-assets-shutdown
 
 cmd=${1:-}; shift || true
 case $cmd in
@@ -108,6 +116,44 @@ case $cmd in
       flock -n "$dir/.lock" rm -rf "$dir" || { echo "ERROR: $t is in use, try again later" >&2; exit 1; }
       echo "uninstalled $t"
     done
+    ;;
+  install-shutdown)
+    # the server in the container has no rights on the host: it creates jobs/.shutdown, a systemd path unit
+    # (root) sees the file, deletes it and powers off. jobs/.shutdown-helper tells the server the units exist
+    need_env; make_dirs
+    jobs=$(jobs_dir)
+    [[ $jobs != *[[:space:]]* ]] || { echo "ERROR: JOBS_DIR must not contain spaces: $jobs" >&2; exit 1; }
+    rm -f "$jobs/.shutdown"
+    sudo tee /etc/systemd/system/$UNIT.path > /dev/null <<UNIT_END
+[Unit]
+Description=gb10-assets: shut down the host when the dashboard asks
+
+[Path]
+PathExists=$jobs/.shutdown
+
+[Install]
+WantedBy=multi-user.target
+UNIT_END
+    sudo tee /etc/systemd/system/$UNIT.service > /dev/null <<UNIT_END
+[Unit]
+Description=gb10-assets: shut down the host
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/rm -f $jobs/.shutdown
+ExecStart=/usr/bin/systemctl poweroff
+UNIT_END
+    sudo systemctl daemon-reload
+    sudo systemctl enable --now $UNIT.path
+    echo "installed by scripts/docker.sh install-shutdown" > "$jobs/.shutdown-helper"
+    echo "the dashboard can shut down the host now (watching $jobs/.shutdown)"
+    ;;
+  uninstall-shutdown)
+    rm -f "$(jobs_dir)/.shutdown-helper"
+    sudo systemctl disable --now $UNIT.path 2>/dev/null || true
+    sudo rm -f /etc/systemd/system/$UNIT.path /etc/systemd/system/$UNIT.service
+    sudo systemctl daemon-reload
+    echo "removed the shutdown units"
     ;;
   status | list)
     state=$(docker compose ps --all --format '{{.State}}, {{.Status}}' server 2>/dev/null || true)

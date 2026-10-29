@@ -101,7 +101,15 @@ curl http://<gb10-host>:8750/health
   `DASHBOARD_DETAILS=1` (prompts cut to 160 characters, own Blender code only as its length). It is kept in
   `jobs/events.jsonl`.
 
-The dashboard needs no token and cannot change anything; everyone who can reach the port can open it.
+The dashboard needs no token to view; everyone who can reach the port can open it.
+
+**Shutdown:** after `scripts/docker.sh install-shutdown` the dashboard also shows a button that shuts the GB10
+down and a checkbox to shut it down after a set number of minutes without a running or queued job (the setting
+is kept in `jobs/shutdown.json`). Both ask for `GB10_ASSETS_TOKEN` once (the browser keeps it), unless the
+server runs without a token. The server in the container has no rights on the host: it only creates
+`jobs/.shutdown`, and a systemd path unit installed by `install-shutdown` (with `sudo`, once) deletes the file
+and runs `systemctl poweroff`. Anyone who can write to `JOBS_DIR`, which includes own Blender code, can
+therefore shut down the host.
 
 ## Client installation
 
@@ -260,6 +268,7 @@ Absolute paths, `~/...` and paths relative to the repo directory work. Compose m
 | `update` | reinstall the installed tools whose definition changed, after `build` |
 | `uninstall TOOL ...` | delete a tool's directory (environment and weights), after a confirmation |
 | `status` (`list`) | container state, server version, queue and dashboard address, then all tools and their state: installed, outdated, incomplete, not installed |
+| `install-shutdown` / `uninstall-shutdown` | install or remove the systemd units that let the [dashboard](#dashboard) shut down the host (uses `sudo`) |
 
 The script wraps plain Docker Compose: `docker compose build`, `docker compose up -d` and so on work too.
 

@@ -2,8 +2,10 @@
 ``Authorization: Bearer $GB10_ASSETS_TOKEN`` (unless GB10_ASSETS_TOKEN=none, then any request is accepted).
 
     GET    /health                     API version, queue state (no auth, used for the client version check)
-    GET    /dashboard                  monitoring page for the browser (no auth, read only)
-    GET    /dashboard/data?since=T     its data: system metrics after time T, tools, event log (no auth)
+    GET    /dashboard                  monitoring page for the browser (no auth)
+    GET    /dashboard/data?since=T     its data: system metrics after time T, tools, event log, shutdown (no auth)
+    POST   /shutdown                   shut the host down (409 without the host helper, see power.py)
+    PUT    /shutdown/idle              JSON {"enabled": bool, "minutes": int}: shut down after that time without jobs
     GET    /tools                      tool names and their parameter JSON schemas
     POST   /jobs                       multipart: field "request" = SubmitJob JSON, files "files" = inputs
     GET    /jobs                       all jobs
@@ -27,6 +29,7 @@ from .. import __version__
 from ..shared.schemas import REQUESTS, BlenderScript, Health, JobInfo, SubmitJob, check_file_name
 from .config import Settings
 from .monitor import Monitor
+from .power import IdleShutdown, Power
 from .queue import JobQueue
 from .runners import TOOLS, install_problem
 
@@ -37,17 +40,21 @@ DASHBOARD_HTML = Path(__file__).with_name("dashboard.html")
 def create_app(settings: Settings, queue: JobQueue | None = None) -> FastAPI:
     queue = queue or JobQueue(settings)
     monitor = Monitor(settings, queue)
+    power = Power(settings, queue)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         queue.start()
         monitor.start()
+        power.start()
         yield
+        power.stop()
         monitor.stop()
         queue.shutdown()
 
     app = FastAPI(title="gb10-assets", version=__version__, lifespan=lifespan)
     app.state.queue = queue
+    app.state.power = power
 
     def auth(request: Request) -> None:
         if settings.token is None:
@@ -73,7 +80,23 @@ def create_app(settings: Settings, queue: JobQueue | None = None) -> FastAPI:
 
     @app.get("/dashboard/data")
     def dashboard_data(since: float = 0.0) -> dict:
-        return monitor.dashboard(since)
+        data = monitor.dashboard(since)
+        data["server"]["auth"] = settings.token is not None
+        data["power"] = power.state()
+        return data
+
+    @app.post("/shutdown", dependencies=[Depends(auth)], status_code=202)
+    def shutdown() -> dict:
+        if not power.installed():
+            raise HTTPException(409, "the shutdown helper is not installed on the host: "
+                                     "scripts/docker.sh install-shutdown")
+        power.request("dashboard")
+        return power.state()
+
+    @app.put("/shutdown/idle", dependencies=[Depends(auth)])
+    def shutdown_idle(idle: IdleShutdown) -> dict:
+        power.set_idle(idle)
+        return power.state()
 
     @app.get("/tools", dependencies=[Depends(auth)])
     def tools() -> dict:
