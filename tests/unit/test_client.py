@@ -221,6 +221,14 @@ def test_mcp_blender_maps_input_paths_in_args(client, tmp_path):
         client.status(sub["job_id"])
 
 
+def test_mcp_blender_help_is_done_with_log(client, tmp_path):
+    server = mcp_server.build(mcp_server.Adapter(client))
+    sub = json.loads(call(server, "blender", {"script": "tex_eyes", "args": ["--help"]}).content[0].text)
+    res = json.loads(call(server, "fetch_result", {"job_id": sub["job_id"], "target_dir": str(tmp_path / "out"),
+                                                   "wait": 5}).content[0].text)
+    assert res["state"] == "done" and res["files"] == [] and res["log"]
+
+
 def test_mcp_refuses_to_start_on_mismatch(monkeypatch, capsys):
     def handler(request):
         return httpx.Response(200, json={"status": "ok", "api_version": 999, "version": "9.9.9"})

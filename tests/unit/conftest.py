@@ -36,6 +36,8 @@ class FakeWorker:
             raise WorkerError("worker exited with code -9")
         if params.get("prompt") == "fail":
             raise JobError("RuntimeError('bad prompt')")
+        if "--help" in params.get("args", []):  # blender: only the usage, no files
+            return []
         (job_dir / "out" / "image_1.png").write_bytes(b"png:" + params.get("prompt", "").encode())
         self.idle_since = time.monotonic()
         return ["image_1.png"]

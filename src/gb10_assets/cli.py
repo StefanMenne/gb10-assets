@@ -40,8 +40,8 @@ def _submit_and_fetch(args, tool: str, params: dict) -> None:
     if args.no_wait:
         print(info.id)
         return
-    _, paths = c.fetch(info.id, args.out, wait=args.timeout, delete=False)
-    if not paths:
+    info, paths = c.fetch(info.id, args.out, wait=args.timeout, delete=False)
+    if info.state.value != "done":
         sys.exit(f"job {info.id} not finished after {args.timeout}s; later: gb10-assets fetch {info.id} {args.out}")
     if tool == "blender":  # the script's output
         print(c.log(info.id), end="", file=sys.stderr)
@@ -241,7 +241,7 @@ def main(argv: list[str] | None = None) -> None:
             _client().delete(a.job)
         elif a.cmd == "fetch":
             info, paths = _client().fetch(a.job, a.out, wait=a.wait)
-            if not paths:
+            if info.state.value != "done":
                 sys.exit(f"job {a.job} is {info.state.value}")
             for path in paths:
                 print(path)

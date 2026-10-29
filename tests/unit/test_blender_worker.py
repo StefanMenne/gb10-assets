@@ -54,6 +54,14 @@ def test_bundled_script_by_name(worker, job_dir, tmp_path, monkeypatch):
     assert run(worker, job_dir, script="copy", args=["fox.txt", "fox2.txt"]) == ["fox2.txt"]
 
 
+def test_help_returns_no_files_without_failing(worker, job_dir, capsys):
+    code = ("import argparse\n"
+            "argparse.ArgumentParser(prog='tex_eyes').add_argument('--eyes', help='eye centres by hand')\n"
+            "argparse.ArgumentParser(prog='tex_eyes').parse_args()\n")
+    assert run(worker, job_dir, code=code, args=["--help"]) == []
+    assert "usage: tex_eyes" in capsys.readouterr().out
+
+
 @pytest.mark.parametrize("code, message", [
     ("raise SystemExit(2)", "code exited with code 2"),
     ("raise SystemExit('no pair of eyes found')", "no pair of eyes found"),

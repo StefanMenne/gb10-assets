@@ -12,7 +12,7 @@ from mcp.server.mcpserver import MCPServer
 from pydantic import Field
 
 from .. import __version__
-from ..shared.schemas import BLENDER_SCRIPTS, JobInfo
+from ..shared.schemas import BLENDER_SCRIPTS, JobInfo, JobState
 from .http_client import ApiError, Client, VersionMismatch
 
 MAX_WAIT_S = 600
@@ -36,8 +36,9 @@ BLENDER_DESCRIPTION = """Run a Python script in Blender 5.2 (bpy, headless, GPU:
 Give either `script` (bundled, below) or `code` (own Python), plus `args` like a command line (sys.argv[1:]) and
 the input `files`. The script runs in a directory holding the input files under their names (refer to inputs in
 args by the local path or the file name) and writes its results there under NEW names; all new files are
-returned. print() output is in the job log (log_tail). Usage of a bundled script: in its line below; it fails
-with its usage text on wrong arguments.
+returned. print() output is in the job log (log_tail). Usage of a bundled script: its main options are in its
+line below; args ["--help"] (no files needed) lists all of them: the job returns no files, only the help in "log".
+A script fails with its usage text on wrong arguments.
 
 Bundled scripts:
 {scripts}
@@ -294,7 +295,7 @@ def build(adapter: Adapter | None = None) -> MCPServer:
         completion notice; do not poll with job_status or call fetch_result again for this job meanwhile."""
         client = adapter.client
         info, paths = client.fetch(job_id, target_dir, wait=max(0, min(wait, MAX_WAIT_S)), delete=False)
-        if not paths:
+        if info.state != JobState.done:
             return {"job_id": job_id, "state": info.state.value, "queue_position": info.queue_position,
                     "files": [], "hint": "not finished yet; call fetch_result again with wait > 0"}
         result = {"job_id": job_id, "state": info.state.value, "files": [str(p.resolve()) for p in paths]}
