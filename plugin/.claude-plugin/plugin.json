@@ -1,6 +1,6 @@
 {
   "name": "gb10-assets",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Generate images, videos, speech and 3D assets on a self-hosted NVIDIA GB10 system: the gb10-assets MCP tools plus skills for game figures and voice lines",
   "author": {
     "name": "Stefan Menne"
