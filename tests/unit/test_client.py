@@ -9,7 +9,7 @@ import pytest
 from conftest import TOKEN, FakeWorker
 from fastapi.testclient import TestClient
 
-from gb10_assets.client import mcp_server
+from gb10_assets.client import http_client, mcp_server
 from gb10_assets.client.http_client import ApiError, Client, VersionMismatch, free_path, upload_name
 from gb10_assets.server.app import create_app
 from gb10_assets.server.queue import JobQueue
@@ -239,3 +239,43 @@ def test_mcp_starts_when_server_unreachable(monkeypatch, capsys):
     adapter = mcp_server.Adapter(Client("http://x", TOKEN, transport=httpx.MockTransport(down)))
     adapter.startup_check()  # warning only
     assert "warning" in capsys.readouterr().err
+
+
+def test_mcp_startup_check_is_one_quick_attempt(capsys):
+    calls = []
+
+    def down(request):
+        calls.append(request.extensions["timeout"]["connect"])
+        raise httpx.ConnectTimeout("timed out")
+
+    adapter = mcp_server.Adapter(Client("http://x", TOKEN, transport=httpx.MockTransport(down)))
+    adapter.startup_check()
+    assert calls == [http_client.QUICK_TIMEOUT_S]                # no retries, short timeout
+    assert "warning" in capsys.readouterr().err
+
+
+def test_wait_polls_through_an_outage(monkeypatch):
+    monkeypatch.setattr(http_client, "RETRY_DELAY_S", 0)
+    job = {"id": "abc", "tool": "flux2-klein", "state": "running", "created_at": "2026-10-29T09:00:00Z"}
+    answers = iter(["running", "down", "down", "down", "down", "down", "failed"])
+
+    def server(request):
+        state = next(answers)
+        if state == "down":
+            raise httpx.ConnectError("no route to host")
+        error = "server restarted while the job was queued or running" if state == "failed" else None
+        return httpx.Response(200, json={**job, "state": state, "error": error})
+
+    c = Client("http://x", TOKEN, transport=httpx.MockTransport(server))
+    info = c.wait("abc", timeout=10, poll=0)
+    assert info.state.value == "failed" and "restarted" in info.error
+
+
+def test_wait_raises_when_still_unreachable_at_the_deadline(monkeypatch):
+    monkeypatch.setattr(http_client, "RETRY_DELAY_S", 0)
+
+    def down(request):
+        raise httpx.ConnectError("no route to host")
+
+    with pytest.raises(http_client.Unreachable):
+        Client("http://x", TOKEN, transport=httpx.MockTransport(down)).wait("abc", timeout=0.05, poll=0.01)

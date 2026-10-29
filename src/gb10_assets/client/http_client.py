@@ -18,6 +18,7 @@ from ..shared.schemas import API_VERSION, REQUESTS, Health, JobInfo, JobState
 
 
 GET_RETRIES, RETRY_DELAY_S = 3, 1.0
+QUICK_TIMEOUT_S = 3.0  # quick health check: one attempt, so that an MCP start never waits for a host that is off
 
 
 class ApiError(RuntimeError):
@@ -26,6 +27,10 @@ class ApiError(RuntimeError):
 
 class VersionMismatch(ApiError):
     pass
+
+
+class Unreachable(ApiError):
+    """No answer from the server at all (host off, container down, wrong address)."""
 
 
 def upload_name(path: Path, taken: set[str]) -> str:
@@ -62,20 +67,22 @@ class Client:
         headers = {"Authorization": f"Bearer {token}"} if token and token.lower() != "none" else {}
         self.http = httpx.Client(base_url=self.url, headers=headers, timeout=timeout, transport=transport)
 
-    def _call(self, method: str, path: str, **kw) -> httpx.Response:
+    def _call(self, method: str, path: str, quick: bool = False, **kw) -> httpx.Response:
         # GETs are retried: a keep-alive connection the server closes just as the next poll reuses it fails with
         # "Server disconnected without sending a response" although the server is fine
-        attempts = GET_RETRIES + 1 if method == "GET" else 1
+        attempts = GET_RETRIES + 1 if method == "GET" and not quick else 1
+        if quick:
+            kw["timeout"] = QUICK_TIMEOUT_S
         for attempt in range(attempts):
             try:
                 r = self.http.request(method, path, **kw)
                 break
             except httpx.TransportError as e:
                 if attempt + 1 == attempts:
-                    raise ApiError(f"server {self.url} not reachable: {e}") from None
+                    raise Unreachable(f"server {self.url} not reachable: {e}") from None
                 time.sleep(RETRY_DELAY_S)
             except httpx.HTTPError as e:
-                raise ApiError(f"server {self.url} not reachable: {e}") from None
+                raise Unreachable(f"server {self.url} not reachable: {e}") from None
         if r.status_code >= 400:
             try:
                 detail = r.json().get("detail", r.text)
@@ -84,11 +91,12 @@ class Client:
             raise ApiError(f"{method} {path} -> HTTP {r.status_code}: {detail}")
         return r
 
-    def health(self) -> Health:
-        return Health.model_validate(self._call("GET", "/health").json())
+    def health(self, quick: bool = False) -> Health:
+        return Health.model_validate(self._call("GET", "/health", quick=quick).json())
 
-    def check_version(self) -> Health:
-        h = self.health()
+    def check_version(self, quick: bool = False) -> Health:
+        """quick: a single attempt with a short timeout instead of the retries."""
+        h = self.health(quick)
         if h.api_version != API_VERSION:
             raise VersionMismatch(
                 f"API version mismatch: server {self.url} speaks v{h.api_version} (gb10-assets {h.version}), "
@@ -136,13 +144,21 @@ class Client:
         return JobInfo.model_validate(self._call("GET", f"/jobs/{job_id}").json())
 
     def wait(self, job_id: str, timeout: float, poll: float = 2.0) -> JobInfo:
-        """Poll until the job is finished or timeout seconds have passed; returns the latest state."""
+        """Poll until the job is finished or timeout seconds have passed; returns the latest state.
+
+        A server that does not answer (host rebooting) is polled on until the deadline; only then the error is
+        raised. A job that was queued or running when the server stopped comes back as failed."""
         deadline = time.monotonic() + timeout
-        info = self.status(job_id)
-        while not info.state.finished and time.monotonic() < deadline:
+        while True:
+            try:
+                info = self.status(job_id)
+            except Unreachable:
+                if time.monotonic() >= deadline:
+                    raise
+            else:
+                if info.state.finished or time.monotonic() >= deadline:
+                    return info
             time.sleep(min(poll, max(0.0, deadline - time.monotonic())))
-            info = self.status(job_id)
-        return info
 
     def fetch(self, job_id: str, target_dir: str | Path, wait: float = 0,
               delete: bool = True) -> tuple[JobInfo, list[Path]]:

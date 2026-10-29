@@ -74,11 +74,12 @@ class Adapter:
 
     def startup_check(self) -> None:
         """Fail hard on missing configuration or a version mismatch; an unreachable server is only a warning
-        (the check is retried on the first tool call)."""
+        (the check is retried on the first tool call). The check is quick: Claude Code drops an MCP server that
+        does not start in time for the whole session, so a host that is off must not delay the start."""
         if self._client is None:
             self._client = Client()
         try:
-            h = self._client.check_version()
+            h = self._client.check_version(quick=True)
             self._checked = True
             print(f"[gb10-assets] connected to {self._client.url}, server {h.version}, API v{h.api_version}",
                   file=sys.stderr)
