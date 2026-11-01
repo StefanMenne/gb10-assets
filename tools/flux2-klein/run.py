@@ -10,7 +10,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from _worker import contact_sheet, log, seeds, serve  # noqa: E402
+from _worker import contact_sheet, fast_cuda_copies, log, seeds, serve  # noqa: E402
 
 MODEL = Path(os.environ.get("WEIGHTS_DIR", "weights")) / "FLUX.2-klein-4B"
 STEPS, GUIDANCE = 4, 1.0
@@ -23,7 +23,8 @@ def load():
     if not (MODEL / "model_index.json").exists():
         raise FileNotFoundError(f"{MODEL} missing, install the tool on the GB10 system: "
                                 "scripts/docker.sh install flux2-klein")
-    return Flux2KleinPipeline.from_pretrained(MODEL, torch_dtype=torch.bfloat16).to("cuda")
+    with fast_cuda_copies():  # ~4 s instead of ~130 s
+        return Flux2KleinPipeline.from_pretrained(MODEL, torch_dtype=torch.bfloat16).to("cuda")
 
 
 def run(pipe, params, job_dir):

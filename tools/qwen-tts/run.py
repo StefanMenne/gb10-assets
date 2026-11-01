@@ -13,7 +13,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from _worker import log, seeds, serve  # noqa: E402
+from _worker import fast_cuda_copies, log, seeds, serve  # noqa: E402
 
 ROOT = Path(os.environ.get("WEIGHTS_DIR", "weights"))
 DESIGN = ROOT / "Qwen3-TTS-12Hz-1.7B-VoiceDesign"
@@ -33,8 +33,9 @@ def load():
                                     "scripts/docker.sh install qwen-tts")
     # sdpa: flash-attn has no aarch64 wheels
     kw = {"device_map": "cuda", "dtype": torch.bfloat16, "attn_implementation": "sdpa"}
-    return {"design": Qwen3TTSModel.from_pretrained(str(DESIGN), **kw),
-            "base": Qwen3TTSModel.from_pretrained(str(BASE), **kw)}
+    with fast_cuda_copies():  # ~3 s instead of ~60 s
+        return {"design": Qwen3TTSModel.from_pretrained(str(DESIGN), **kw),
+                "base": Qwen3TTSModel.from_pretrained(str(BASE), **kw)}
 
 
 def run(models, params, job_dir):

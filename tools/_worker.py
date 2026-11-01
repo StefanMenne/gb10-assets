@@ -12,6 +12,7 @@ Everything else (library output, progress, tracebacks) goes to stderr, which the
 job log; before each event a SYNC line on stderr tells the server that the log up to the event has arrived. File descriptor 1 is redirected to stderr so stray prints cannot corrupt the protocol. The worker
 loads the model once and serves jobs until stdin closes (sticky worker), then exits and frees GPU memory.
 """
+import contextlib
 import json
 import os
 import sys
@@ -68,6 +69,44 @@ def serve(load, run):
             continue
         log(f"job done in {time.time() - t:.0f}s: {', '.join(outputs)}")
         send(event="done", outputs=outputs)
+
+
+@contextlib.contextmanager
+def fast_cuda_copies():
+    """Copies CPU tensors to anonymous memory before they go to the GPU (needs torch in the tool environment).
+
+    On GB10, copying a tensor that is mmapped from a safetensors file to the GPU runs at ~120 MB/s, even with the
+    file in the page cache (16 GB: ~130 s); a clone() first takes 0.2 s per 8 GB and the copy then as long. Loaders
+    of transformers and diffusers mmap the files and move them with .to("cuda") (also with device_map="cuda") or
+    copy_(), so loading code runs inside this context."""
+    import torch
+
+    to, copy_ = torch.Tensor.to, torch.Tensor.copy_
+
+    def to_cuda(args, kwargs):
+        dev = kwargs.get("device")
+        for a in args:
+            if isinstance(a, (str, torch.device, int)) and not isinstance(a, bool):
+                dev = a
+            elif isinstance(a, torch.Tensor):
+                dev = a.device
+        return dev is not None and torch.device(dev).type == "cuda"
+
+    def fast_to(self, *args, **kwargs):
+        if self.device.type == "cpu" and to_cuda(args, kwargs):
+            self = self.clone()
+        return to(self, *args, **kwargs)
+
+    def fast_copy_(self, src, *args, **kwargs):
+        if self.device.type == "cuda" and isinstance(src, torch.Tensor) and src.device.type == "cpu":
+            src = src.clone()
+        return copy_(self, src, *args, **kwargs)
+
+    torch.Tensor.to, torch.Tensor.copy_ = fast_to, fast_copy_
+    try:
+        yield
+    finally:
+        torch.Tensor.to, torch.Tensor.copy_ = to, copy_
 
 
 def seeds(params):

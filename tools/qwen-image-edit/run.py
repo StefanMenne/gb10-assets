@@ -14,7 +14,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from _worker import contact_sheet, log, seeds, serve  # noqa: E402
+from _worker import contact_sheet, fast_cuda_copies, log, seeds, serve  # noqa: E402
 
 ROOT = Path(os.environ.get("WEIGHTS_DIR", "weights"))
 MODEL = ROOT / "Qwen-Image-Edit-2511"
@@ -39,19 +39,6 @@ SCHEDULER = {
 }
 
 
-def read_text_encoder(path, dtype):
-    """Qwen2.5-VL text encoder read without mmap. On GB10, moving mmap-loaded weights to the GPU takes ~105 s for
-    these 16.6 GB; reading the files at once and building the model from the state dict takes ~12 s."""
-    from safetensors.torch import load
-    from transformers import AutoConfig, Qwen2_5_VLForConditionalGeneration
-
-    state = {}
-    for f in sorted(path.glob("*.safetensors")):
-        state.update(load(f.read_bytes()))
-    return Qwen2_5_VLForConditionalGeneration.from_pretrained(
-        None, config=AutoConfig.from_pretrained(path), state_dict=state, dtype=dtype)
-
-
 def load():
     import torch
     from diffusers import FlowMatchEulerDiscreteScheduler, QwenImageEditPlusPipeline
@@ -60,11 +47,9 @@ def load():
         if not path.exists():
             raise FileNotFoundError(f"{path} missing, install the tool on the GB10 system: "
                                     "scripts/docker.sh install qwen-image-edit")
-    # disable_mmap: the same slowdown for the diffusers components (transformer 41 GB: ~45 s instead of minutes)
-    pipe = QwenImageEditPlusPipeline.from_pretrained(
-        MODEL, scheduler=FlowMatchEulerDiscreteScheduler.from_config(SCHEDULER),
-        text_encoder=read_text_encoder(MODEL / "text_encoder", torch.bfloat16), dtype=torch.bfloat16,
-        disable_mmap=True).to("cuda")
+    with fast_cuda_copies():  # ~27 s with the LoRA fusion, instead of 40-65 s without mmap
+        pipe = QwenImageEditPlusPipeline.from_pretrained(
+            MODEL, scheduler=FlowMatchEulerDiscreteScheduler.from_config(SCHEDULER), dtype=torch.bfloat16).to("cuda")
     # fuse on the GPU: 1 s instead of 26 s on the CPU
     pipe.load_lora_weights(LORA.parent, weight_name=LORA.name)
     pipe.fuse_lora()

@@ -18,7 +18,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from _worker import log, seeds, serve  # noqa: E402
+from _worker import fast_cuda_copies, log, seeds, serve  # noqa: E402
 
 ROOT = Path(os.environ.get("WEIGHTS_DIR", "weights"))
 LOCAL = {  # Hub repo -> local directory
@@ -86,7 +86,8 @@ def load():
     with tempfile.NamedTemporaryFile("w", suffix=".yaml") as f:
         yaml.safe_dump(CONFIG, f)
         f.flush()
-        return inference.ConfuciusTTS(config_path=f.name, device="cuda")
+        with fast_cuda_copies():
+            return inference.ConfuciusTTS(config_path=f.name, device="cuda")
 
 
 def run(model, params, job_dir):
