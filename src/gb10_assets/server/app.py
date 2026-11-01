@@ -59,9 +59,9 @@ def create_app(settings: Settings, queue: JobQueue | None = None) -> FastAPI:
 
     @app.middleware("http")
     async def no_keep_alive(request: Request, call_next):
-        # a new connection per request: a kept-alive one can be closed by the server (5 s idle) or on the way
-        # (seen after 60 s) just as a client reuses it, and a POST /jobs then fails without reaching the server
-        # ("Failed to fetch"); POSTs cannot be repeated safely. On a LAN a new connection costs well under 1 ms.
+        # a new connection per request: uvicorn closes an idle kept-alive one after 5 s, and a client that reuses
+        # it at that moment fails without reaching the server (seen as "Failed to fetch" in Chromium, 1 of 24
+        # POSTs after ~5 s idle); POSTs cannot be repeated safely. On a LAN a new connection costs well under 1 ms.
         response = await call_next(request)
         response.headers["Connection"] = "close"
         return response
