@@ -28,10 +28,10 @@ class ToolSpec:
 
 
 TOOLS: dict[str, ToolSpec] = {t.name: t for t in (
-    ToolSpec("flux2-klein", min_free_gb=30),
+    ToolSpec("flux2-klein", min_free_gb=48),  # measured peak ~41 GB (bf16, 2 x 2048x2048, no reference images)
     ToolSpec("qwen-image-edit", min_free_gb=70),  # measured peak ~63 GB (bf16 weights + LoRA, 1 MP)
-    ToolSpec("qwen-tts", min_free_gb=20),  # VoiceDesign + Base, 2 x 4.5 GB bf16; estimate, not measured yet
-    ToolSpec("confucius-tts", min_free_gb=16),  # T2S 2.6 GB + w2v-BERT 2.3 GB (fp32) + S2A + BigVGAN; estimate
+    ToolSpec("qwen-tts", min_free_gb=20),  # measured peak ~14 GB (VoiceDesign + Base, 2 x 4.5 GB bf16)
+    ToolSpec("confucius-tts", min_free_gb=20),  # measured peak ~13 GB (3 short texts); long texts need more
     ToolSpec("ltx-video", min_free_gb=102),  # jobs are limited to ~98 GB peak (MAX_GB in tools/ltx-video/run.py)
     ToolSpec("pixal3d", min_free_gb=24),  # measured peak ~14 GB (int8 DiT, resolution 1536, 4096 textures)
     ToolSpec("blender", min_free_gb=8),  # bpy itself ~1 GB; scripts on big meshes or renders need more
