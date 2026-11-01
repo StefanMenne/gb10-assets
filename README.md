@@ -103,6 +103,15 @@ curl http://<gb10-host>:8750/health
 
 The dashboard needs no token to view; everyone who can reach the port can open it.
 
+**Image studio:** `http://<gb10-host>:8750/create` (linked in the dashboard header) generates images with
+flux2-klein or edits them with qwen-image-edit in the browser: prompt, size, variants, seed, input images by
+drag and drop or paste, a download button per result, and "Edit this" to edit a result further. It submits normal
+jobs through the API and asks for `GB10_ASSETS_TOKEN` once. The results stay in the browser tab; the server
+deletes each job as soon as the page has its images.
+
+**Unload:** a button in the dashboard header stops the idle worker and frees its memory at once, for example
+when another program needs it before `WORKER_IDLE_S` runs out.
+
 **Shutdown:** after `scripts/docker.sh install-shutdown` the dashboard also shows a button that shuts the GB10
 down and a checkbox to shut it down after a set number of minutes without a running or queued job (the setting
 is kept in `jobs/shutdown.json`). Both ask for `GB10_ASSETS_TOKEN` once (the browser keeps it), unless the

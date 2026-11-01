@@ -3,7 +3,9 @@
 
     GET    /health                     API version, queue state (no auth, used for the client version check)
     GET    /dashboard                  monitoring page for the browser (no auth)
+    GET    /create                     page to generate and edit images in the browser (no auth; its jobs need it)
     GET    /dashboard/data?since=T     its data: system metrics after time T, tools, event log, shutdown (no auth)
+    POST   /unload                     stop the idle worker and free its memory (409 while a job runs)
     POST   /shutdown                   shut the host down (409 without the host helper, see power.py)
     PUT    /shutdown/idle              JSON {"enabled": bool, "minutes": int}: shut down after that time without jobs
     GET    /tools                      tool names and their parameter JSON schemas
@@ -35,6 +37,7 @@ from .runners import TOOLS, install_problem
 
 MAX_UPLOAD_BYTES = 512 * 1024**2
 DASHBOARD_HTML = Path(__file__).with_name("dashboard.html")
+CREATE_HTML = Path(__file__).with_name("create.html")
 
 
 def create_app(settings: Settings, queue: JobQueue | None = None) -> FastAPI:
@@ -77,6 +80,10 @@ def create_app(settings: Settings, queue: JobQueue | None = None) -> FastAPI:
     @app.get("/dashboard", response_class=HTMLResponse, include_in_schema=False)
     def dashboard() -> str:
         return DASHBOARD_HTML.read_text()
+
+    @app.get("/create", response_class=HTMLResponse, include_in_schema=False)
+    def create_page() -> str:
+        return CREATE_HTML.read_text()
 
     @app.get("/dashboard/data")
     def dashboard_data(since: float = 0.0) -> dict:

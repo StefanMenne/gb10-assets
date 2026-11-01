@@ -169,3 +169,8 @@ def test_stale_request_dropped_at_start(settings):
     (settings.jobs_dir / REQUEST_FILE).write_text("dashboard\n")
     Power(settings, make_queue(settings))
     assert not (settings.jobs_dir / REQUEST_FILE).exists()
+
+
+def test_create_page_without_auth(api):
+    page = api.get("/create").text
+    assert "Image studio" in page and 'api("POST", "jobs"' in page
