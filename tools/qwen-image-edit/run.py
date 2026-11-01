@@ -62,7 +62,11 @@ def run(pipe, params, job_dir):
     from PIL import Image
 
     images = [Image.open(job_dir / "in" / name).convert("RGB") for name in params["images"]]
-    kw = {k: params[k] for k in ("width", "height") if params.get(k)}
+    # diffusers derives a missing size from the last image; the documented default is the first image's ratio
+    w, h = images[0].size
+    side = math.sqrt(1024 * 1024 / (w * h))  # scale to about 1 MP, sides in multiples of 32 as in diffusers
+    kw = {"width": params.get("width") or round(w * side / 32) * 32,
+          "height": params.get("height") or round(h * side / 32) * 32}
     paths = []
     for seed in seeds(params):
         t = time.time()
