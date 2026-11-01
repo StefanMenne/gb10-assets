@@ -56,6 +56,15 @@ def create_app(settings: Settings, queue: JobQueue | None = None) -> FastAPI:
         queue.shutdown()
 
     app = FastAPI(title="gb10-assets", version=__version__, lifespan=lifespan)
+
+    @app.middleware("http")
+    async def no_keep_alive(request: Request, call_next):
+        # a new connection per request: a kept-alive one can be closed by the server (5 s idle) or on the way
+        # (seen after 60 s) just as a client reuses it, and a POST /jobs then fails without reaching the server
+        # ("Failed to fetch"); POSTs cannot be repeated safely. On a LAN a new connection costs well under 1 ms.
+        response = await call_next(request)
+        response.headers["Connection"] = "close"
+        return response
     app.state.queue = queue
     app.state.power = power
 

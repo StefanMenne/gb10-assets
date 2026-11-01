@@ -240,3 +240,8 @@ def test_unload_refused_while_a_job_runs(settings):
         assert r.status_code == 409 and "flux2-klein job is running" in r.text
         assert queue._worker.alive()
         queue.cancel(job_id)
+
+
+def test_connections_are_not_kept_alive(api):
+    assert api.get("/health").headers["connection"] == "close"
+    assert api.get("/jobs", headers=AUTH).headers["connection"] == "close"

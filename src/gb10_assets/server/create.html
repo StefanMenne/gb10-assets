@@ -162,8 +162,8 @@ async function api(method, path, {body, blob, step} = {}) {
     try {
       r = await fetch(path, {method, headers, body, cache: "no-store"});
     } catch (err) {
-      // no answer from the server (network, standby, server restart); reading is safe to repeat for ~2 min
-      if (method === "GET" && ++tries <= 40) { await sleep(3000); continue; }
+      // no answer from the server (network, standby, server restart); reading is safe to repeat, for ~2 min
+      if (method === "GET" && ++tries <= 40) { await sleep(tries === 1 ? 0 : 3000); continue; }
       throw new Error(`${step || method + " " + path}: no answer from the server (${err.message}). `
         + "Check that the GB10 is reachable, e.g. the dashboard; a job that was already submitted keeps running there.");
     }
