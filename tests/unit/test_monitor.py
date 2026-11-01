@@ -174,3 +174,19 @@ def test_stale_request_dropped_at_start(settings):
 def test_create_page_without_auth(api):
     page = api.get("/create").text
     assert "Image studio" in page and 'api("POST", "jobs"' in page
+
+
+def test_video_page_without_auth(api):
+    page = api.get("/video").text
+    assert "Video studio" in page and 'api("POST", "jobs"' in page and "ltx-video" in page
+
+
+def test_video_page_memory_model_matches_the_server():
+    from pathlib import Path
+
+    from gb10_assets.server import app
+    from gb10_assets.shared.schemas import LTX_KEYFRAMES_S, LTX_MAX_GB
+
+    page = Path(app.VIDEO_HTML).read_text()
+    assert "51 + 0.172 * w * h * frames / 1e6 + 0.39 * frames / fps" in page
+    assert f"MAX_GB = {LTX_MAX_GB:g}," in page and f"KEYFRAMES_S = {LTX_KEYFRAMES_S:g};" in page

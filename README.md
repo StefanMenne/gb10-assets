@@ -109,6 +109,11 @@ drag and drop or paste, a download button per result, and "Edit this" to edit a 
 jobs through the API and asks for `GB10_ASSETS_TOKEN` once. The results stay in the browser tab; the server
 deletes each job as soon as the page has its images.
 
+**Video studio:** `http://<gb10-host>:8750/video` (also linked in the header) does the same for ltx-video: text
+or keyframes to video, audio to video, and retakes of a time range. It shows what fits the memory for a size and
+length before submitting, plays the results, and takes "Retake this" or the frame shown in the player
+("Frame → keyframe", e.g. the last one to continue a clip) back into the form.
+
 **Unload:** a button in the dashboard header stops the idle worker and frees its memory at once, for example
 when another program needs it before `WORKER_IDLE_S` runs out.
 

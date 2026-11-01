@@ -1,0 +1,641 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gb10-assets video studio</title>
+<style>
+:root {
+  --bg: #f6f7f9; --card: #ffffff; --border: #e3e6eb; --text: #1b1f24; --muted: #69727d; --grid: #eceef2;
+  --accent: #3b82f6; --accent-soft: rgba(59, 130, 246, .16); --worker: #7c3aed;
+  --ok: #16a34a; --warn: #d97706; --bad: #dc2626; --info: #2563eb;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1216; --card: #171b21; --border: #262c35; --text: #e6e9ee; --muted: #8b95a3; --grid: #222831;
+    --accent: #60a5fa; --accent-soft: rgba(96, 165, 250, .18); --worker: #a78bfa;
+    --ok: #4ade80; --warn: #fbbf24; --bad: #f87171; --info: #60a5fa;
+  }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1400px; margin: 0 auto; padding: 16px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; margin-bottom: 14px; }
+h1 { font-size: 20px; margin: 0; }
+h2 { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 8px; }
+a { color: var(--accent); }
+header a { font-size: 13px; }
+header a.first { margin-left: auto; }
+.muted { color: var(--muted); } .small { font-size: 12px; } .bad { color: var(--bad); } .ok { color: var(--ok); } .warn { color: var(--warn); }
+.layout { display: grid; grid-template-columns: 400px minmax(0, 1fr); gap: 14px; align-items: start; }
+@media (max-width: 880px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; min-width: 0; }
+form.card { position: sticky; top: 16px; display: grid; gap: 12px; max-height: calc(100vh - 32px); overflow-y: auto; }
+@media (max-width: 880px) { form.card { position: static; max-height: none; } }
+label.f, .f { display: grid; gap: 4px; font-size: 12px; font-weight: 600; color: var(--muted); }
+label.check { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 400; color: var(--text); }
+label.check input { width: auto; }
+textarea, input, select { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font: inherit; font-size: 14px; font-weight: 400; }
+textarea { min-height: 110px; resize: vertical; }
+textarea:focus, input:focus, select:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.pair.three { grid-template-columns: 1fr 1fr 1fr; }
+.tabs { display: grid; grid-template-columns: 1fr 1fr 1fr; background: var(--grid); border-radius: 8px; padding: 3px; }
+.tabs button { border: 0; background: none; color: var(--muted); padding: 6px; border-radius: 6px; font: inherit; font-weight: 600; cursor: pointer; }
+.tabs button[aria-selected=true] { background: var(--card); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+.hint { font-size: 12px; color: var(--muted); font-weight: 400; }
+.hint.bad { color: var(--bad); }
+.drop { border: 1.5px dashed var(--border); border-radius: 8px; padding: 10px; text-align: center; color: var(--muted); font-size: 13px; font-weight: 400; cursor: pointer; }
+.drop.over { border-color: var(--accent); background: var(--accent-soft); }
+#images { display: flex; flex-wrap: wrap; gap: 8px; }
+#images:empty { display: none; }
+.thumb { position: relative; width: 76px; height: 76px; border-radius: 6px; overflow: hidden; border: 1px solid var(--border); background: var(--grid); }
+.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.thumb button, .media button.x { position: absolute; top: 3px; right: 3px; width: 20px; height: 20px; border-radius: 50%; border: 0; background: rgba(0,0,0,.6); color: #fff; font-size: 13px; line-height: 20px; padding: 0; cursor: pointer; }
+.thumb span { position: absolute; left: 3px; bottom: 3px; background: rgba(0,0,0,.6); color: #fff; font-size: 11px; border-radius: 4px; padding: 0 4px; }
+.media { position: relative; display: grid; gap: 6px; font-weight: 400; color: var(--text); }
+.media video { width: 100%; max-height: 240px; background: #000; border-radius: 6px; display: block; }
+.media audio { width: 100%; }
+.media .name { font-size: 12px; color: var(--muted); padding-right: 26px; word-break: break-all; }
+.media button.x { top: 0; right: 0; }
+.row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.btn { border: 1px solid var(--border); background: var(--card); color: var(--text); border-radius: 6px; padding: 5px 10px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
+.btn:hover { background: var(--grid); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; padding: 8px 12px; font-size: 14px; justify-content: center; }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn:disabled { opacity: .5; cursor: default; filter: none; }
+#status { display: none; align-items: center; gap: 10px; font-size: 13px; }
+#status.on { display: flex; }
+#status .spin { width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .9s linear infinite; flex: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+#status .btn { margin-left: auto; }
+#error { display: none; font-size: 13px; color: var(--bad); white-space: pre-wrap; word-break: break-word; }
+#error.on { display: block; }
+#results-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+#results-head h2 { margin: 0; }
+#results-head .btn { margin-left: auto; }
+#results { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px; }
+.res { background: var(--card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; display: flex; flex-direction: column; }
+.res video { display: block; width: 100%; height: auto; background: #000; }
+.res .meta { padding: 8px 10px 0; font-size: 12px; color: var(--muted); }
+.res .meta b { color: var(--text); font-weight: 600; }
+.res .prompt { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-top: 2px; }
+.res .actions { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 10px 10px; }
+.empty { grid-column: 1 / -1; color: var(--muted); padding: 40px 0; text-align: center; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Video studio</h1>
+    <span class="muted small">gb10-assets · LTX-2.5, video with sound</span>
+    <a href="create" class="first">Image studio</a>
+    <a href="dashboard">← Dashboard</a>
+  </header>
+
+  <div class="layout">
+    <form class="card" id="form" autocomplete="off">
+      <div class="tabs" role="tablist">
+        <button type="button" role="tab" id="tab-generate" aria-selected="true">Text / images</button>
+        <button type="button" role="tab" id="tab-audio" aria-selected="false">Audio</button>
+        <button type="button" role="tab" id="tab-retake" aria-selected="false">Retake</button>
+      </div>
+      <div class="hint" id="mode-hint"></div>
+
+      <label class="f">Prompt
+        <textarea id="prompt" required maxlength="8000"></textarea>
+      </label>
+
+      <div class="f" id="video-box">
+        <span>Video to retake</span>
+        <div class="drop" id="video-drop" tabindex="0">Drop a video here or click to choose</div>
+        <div class="media" id="video-media" hidden>
+          <video id="video-preview" controls playsinline preload="metadata"></video>
+          <div class="name" id="video-name"></div><button type="button" class="x" id="video-remove" title="Remove" aria-label="Remove video">×</button>
+        </div>
+        <input type="file" id="video-file" accept="video/*" hidden>
+      </div>
+      <div id="retake-box" class="f" style="gap:10px">
+        <div class="pair">
+          <label class="f">From (s) <input type="number" id="start" min="0" step="0.1"></label>
+          <label class="f">To (s) <input type="number" id="end" min="0.1" step="0.1"></label>
+        </div>
+        <div class="row"><button type="button" class="btn" id="set-start">From = position</button>
+          <button type="button" class="btn" id="set-end">To = position</button>
+          <span class="hint" id="video-len"></span></div>
+        <label class="f">Regenerate
+          <select id="regenerate">
+            <option value="both">Video and audio</option>
+            <option value="video">Only video (keep the sound)</option>
+            <option value="audio">Only audio (keep the picture)</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="f" id="audio-box">
+        <span>Soundtrack (speech, song, music)</span>
+        <div class="drop" id="audio-drop" tabindex="0">Drop an audio file here or click to choose</div>
+        <div class="media" id="audio-media" hidden>
+          <audio id="audio-preview" controls preload="metadata"></audio>
+          <div class="name" id="audio-name"></div><button type="button" class="x" id="audio-remove" title="Remove" aria-label="Remove audio">×</button>
+        </div>
+        <input type="file" id="audio-file" accept="audio/*,video/*" hidden>
+      </div>
+
+      <div class="f" id="images-box">
+        <span id="images-label"></span>
+        <div class="drop" id="image-drop" tabindex="0">Drop images here, paste, or click to choose</div>
+        <input type="file" id="image-file" accept="image/*" multiple hidden>
+        <div id="images"></div>
+      </div>
+
+      <div id="shape-box" class="f" style="gap:10px">
+        <div class="pair">
+          <label class="f">Length
+            <select id="duration-mode"></select>
+          </label>
+          <label class="f">Seconds <input type="number" id="duration" min="1" max="20" step="0.5" value="5"></label>
+        </div>
+        <label class="f">Size
+          <select id="preset"></select>
+        </label>
+        <div class="pair" id="custom-size">
+          <label class="f">Width <input type="number" id="width" min="256" max="2048" step="64"></label>
+          <label class="f">Height <input type="number" id="height" min="256" max="2048" step="64"></label>
+        </div>
+        <label class="f">Frame rate
+          <select id="fps"><option>24</option><option>25</option><option>30</option><option>48</option><option>50</option><option>12</option></select>
+        </label>
+        <div class="hint" id="memory"></div>
+      </div>
+
+      <div class="pair">
+        <label class="f">Variants <input type="number" id="count" min="1" max="8" value="1"></label>
+        <label class="f">Seed <input type="number" id="seed" min="0" max="4294967295" placeholder="random"></label>
+      </div>
+      <label class="check"><input type="checkbox" id="enhance"> Expand a short prompt first (Gemma)</label>
+
+      <button type="submit" class="btn primary" id="submit">Generate</button>
+      <div id="status"><div class="spin"></div><span id="status-text"></span><button type="button" class="btn" id="cancel">Cancel</button></div>
+      <div id="error"></div>
+    </form>
+
+    <section>
+      <div id="results-head"><h2>Results</h2><span class="small muted" id="results-note"></span>
+        <button type="button" class="btn" id="clear" hidden>Clear</button></div>
+      <div id="results"></div>
+    </section>
+  </div>
+</main>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const TOOL = "ltx-video";
+const MODES = {
+  generate: {submit: "Generate", maxImages: 4, label: "Keyframes (optional, up to 4)",
+    hint: "From text, or from images: one image is the first frame, two are first and last frame, more are spread evenly over the clip. Describe action, camera and sound in the prompt; speech in quotes."},
+  audio: {submit: "Generate", maxImages: 1, label: "First frame (optional)",
+    hint: "The video is made for the soundtrack and keeps it: lip sync for speech, motion to music. The clip is as long as the audio (at most 20 s)."},
+  retake: {submit: "Retake", maxImages: 0, label: "",
+    hint: "Regenerates a time range of a video (picture, sound or both); the rest stays. The prompt describes the new section."},
+};
+// LTX-2.5 memory on GB10, the same model as ltx_memory_gb in gb10_assets/shared/schemas.py
+const MAX_GB = 98, MAX_FRAMES = 481, DEFAULT_SIZE = [1536, 1024], KEYFRAMES_S = 5;
+const memoryGb = (w, h, frames, fps) => 51 + 0.172 * w * h * frames / 1e6 + 0.39 * frames / fps;
+const framesFor = (s, fps) => Math.min(MAX_FRAMES, Math.round(s * fps / 8) * 8 + 1);
+function maxSeconds(w, h, fps) {
+  let f = MAX_FRAMES;
+  while (f > 9 && memoryGb(w, h, f, fps) > MAX_GB) f -= 8;
+  return (f - 1) / fps;
+}
+const PRESETS = [[1536, 1024], [1024, 1536], [1920, 1088], [1280, 832], [832, 1280], [1024, 704], [1024, 576], [576, 1024], [1024, 1024], [768, 512], [512, 768]];
+const SETTINGS_KEY = "gb10-assets-video", TOKEN_KEY = "gb10-assets-token";
+
+let mode = "generate", images = [], audio = null, video = null, results = [], job = null, seq = 0;
+
+// ------------------------------------------------------------------------------------------- storage
+function load(key, fallback) { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; } }
+function save(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch {} }
+function storedToken() { try { return localStorage.getItem(TOKEN_KEY) || ""; } catch { return ""; } }
+function storeToken(t) { try { t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY); } catch {} }
+
+// a request with the token (GB10_ASSETS_TOKEN); asks for it on 401, the browser keeps it (shared with the dashboard)
+async function api(method, path, {body, blob, step} = {}) {
+  for (let wrong = false, tries = 0; ;) {
+    const token = storedToken();
+    const headers = token ? {Authorization: `Bearer ${token}`} : {};
+    let r;
+    try {
+      r = await fetch(path, {method, headers, body, cache: "no-store"});
+    } catch (err) {
+      // no answer from the server (network, standby, server restart); reading is safe to repeat, for ~2 min
+      if (method === "GET" && ++tries <= 40) { await sleep(tries === 1 ? 0 : 3000); continue; }
+      throw new Error(`${step || method + " " + path}: no answer from the server (${err.message}). `
+        + "Check that the GB10 is reachable, e.g. the dashboard; a job that was already submitted keeps running there.");
+    }
+    if (r.status === 401) {
+      const t = prompt((wrong || token ? "Wrong token. " : "") + "Token (GB10_ASSETS_TOKEN in the server's .env):");
+      if (!t) throw new Error("no token given");
+      storeToken(t.trim()); wrong = true; continue;
+    }
+    if (!r.ok) throw new Error(await errorText(r));
+    return r.status === 204 ? null : blob ? r.blob() : r.json();
+  }
+}
+async function errorText(r) {
+  const text = await r.text();
+  try {
+    const d = JSON.parse(text).detail;
+    if (Array.isArray(d)) return d.map(e => `${(e.loc || []).filter(x => x !== "body").join(".")}: ${e.msg}`).join("\n");
+    if (d) return String(d);
+  } catch {}
+  return `${r.status} ${text}`;
+}
+
+// ------------------------------------------------------------------------------------------- form
+function setMode(m) {
+  mode = m;
+  const cfg = MODES[m];
+  for (const k of Object.keys(MODES)) $(`tab-${k}`).setAttribute("aria-selected", k === m);
+  $("mode-hint").textContent = cfg.hint;
+  $("images-label").textContent = cfg.label;
+  $("images-box").hidden = !cfg.maxImages;
+  $("audio-box").hidden = m !== "audio";
+  $("video-box").hidden = $("retake-box").hidden = m !== "retake";
+  $("shape-box").hidden = m === "retake";
+  $("prompt").placeholder = {
+    generate: "A red fox trots through fresh snow in a quiet pine forest at dawn, slow tracking shot from the side, soft crunching footsteps, birdsong",
+    audio: "A woman in a green coat speaks to the camera in a cozy library, warm lamp light, medium close-up",
+    retake: "The man turns around and waves at the camera, smiling",
+  }[m];
+  if (!job) $("submit").textContent = cfg.submit;
+  const keep = $("duration-mode").value;
+  $("duration-mode").innerHTML = (m === "audio"
+    ? `<option value="auto">Length of the audio</option>`
+    : `<option value="auto">Auto (from the prompt; 5 s with several keyframes)</option>`)
+    + `<option value="fixed">Fixed</option>`;
+  $("duration-mode").value = keep === "fixed" ? "fixed" : "auto";
+  renderImages();
+  sync();
+}
+function sync() {
+  const v = $("preset").value;
+  $("custom-size").hidden = v !== "custom";
+  if (v !== "custom" && v !== "auto") [$("width").value, $("height").value] = v.split("x");
+  $("duration").disabled = $("duration-mode").value !== "fixed";
+  $("duration").parentElement.style.opacity = $("duration").disabled ? .5 : 1;
+  renderMemory();
+  saveSettings();
+}
+function snap(el, lo, hi, step) {
+  if (el.value === "") return;
+  el.value = Math.min(hi, Math.max(lo, Math.round(Number(el.value) / step) * step));
+}
+// what fits into the memory: the server checks the same, this only warns before submitting
+function renderMemory() {
+  const el = $("memory");
+  el.classList.remove("bad");
+  if (mode === "retake") return;
+  const fps = Number($("fps").value);
+  const fixed = $("duration-mode").value === "fixed";
+  const seconds = fixed ? Number($("duration").value) : mode === "generate" && images.length > 1 ? KEYFRAMES_S : null;
+  if ($("preset").value === "auto") {
+    el.textContent = `1536 × 1024 or the first image's aspect ratio; for longer clips the size shrinks to fit the memory.`;
+    return;
+  }
+  const w = Number($("width").value), h = Number($("height").value);
+  if (!w || !h) { el.textContent = ""; return; }
+  const most = maxSeconds(w, h, fps);
+  if (seconds == null) {
+    el.textContent = `At this size at most ${most.toFixed(1)} s at ${fps} fps${mode === "audio" ? " (longer audio is cut)" : ""}.`;
+    return;
+  }
+  const need = memoryGb(w, h, framesFor(seconds, fps), fps);
+  if (need > MAX_GB) {
+    el.textContent = `${seconds} s at ${w} × ${h} needs ~${need.toFixed(0)} GB, more than the ${MAX_GB} GB a video may use: at most ${most.toFixed(1)} s at this size, or a smaller size (768 × 512 fits 20 s).`;
+    el.classList.add("bad");
+  } else {
+    el.textContent = `~${need.toFixed(0)} GB of ${MAX_GB} GB; at this size at most ${most.toFixed(1)} s.`;
+  }
+}
+function saveSettings() {
+  save(SETTINGS_KEY, {mode, prompt: $("prompt").value, preset: $("preset").value, width: $("width").value,
+                      height: $("height").value, count: $("count").value, fps: $("fps").value,
+                      durationMode: $("duration-mode").value, duration: $("duration").value,
+                      enhance: $("enhance").checked, regenerate: $("regenerate").value});
+}
+
+// ------------------------------------------------------------------------------------------- inputs
+// files are read at once: a File is only a reference, and the upload fails if the file changes or moves
+async function readFile(f) { return new Blob([await f.arrayBuffer()], {type: f.type}); }
+const EXT = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif", "video/mp4": "mp4",
+  "video/webm": "webm", "video/quicktime": "mov", "audio/mpeg": "mp3", "audio/wav": "wav", "audio/x-wav": "wav",
+  "audio/wave": "wav", "audio/ogg": "ogg", "audio/flac": "flac", "audio/x-flac": "flac", "audio/mp4": "m4a",
+  "audio/x-m4a": "m4a", "audio/aac": "aac"};
+function input(blob, base, fallbackExt, label) {
+  const ext = EXT[blob.type] || (label?.match(/\.(\w{2,4})$/) || [])[1]?.toLowerCase() || fallbackExt;
+  return {blob, name: `${base}_${++seq}.${ext}`, label: label || "", url: URL.createObjectURL(blob)};
+}
+function drop(el, fileInput, onFiles) {
+  el.onclick = () => fileInput.click();
+  el.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); } };
+  fileInput.onchange = e => { onFiles([...e.target.files]); e.target.value = ""; };
+  for (const ev of ["dragenter", "dragover"]) el.addEventListener(ev, e => { e.preventDefault(); el.classList.add("over"); });
+  for (const ev of ["dragleave", "drop"]) el.addEventListener(ev, () => el.classList.remove("over"));
+  el.addEventListener("drop", e => { e.preventDefault(); onFiles([...e.dataTransfer.files]); });
+}
+
+async function addImages(files) {
+  const max = MODES[mode].maxImages;
+  showError("");
+  for (const f of files) {
+    if (!f.type.startsWith("image/")) { showError(`${f.name} is not an image.`); continue; }
+    if (images.length >= max) { showError(max === 1 ? "Only one first frame: remove the image first." : `At most ${max} keyframes.`); break; }
+    try { images.push(input(await readFile(f), "image", "png", f.name)); } catch (err) { showError(`Could not read ${f.name}: ${err.message}`); }
+    renderImages();
+  }
+}
+function renderImages() {
+  $("images").innerHTML = images.map((inp, i) => `<div class="thumb"><img src="${inp.url}" alt="image ${i + 1}">
+    <span>${i + 1}</span><button type="button" data-i="${i}" title="Remove" aria-label="Remove image ${i + 1}">×</button></div>`).join("");
+  const max = MODES[mode].maxImages, over = max && images.length > max;
+  $("image-drop").textContent = over ? `Only ${max} image${max > 1 ? "s" : ""} in this mode, remove some` : "Drop images here, paste, or click to choose";
+  $("image-drop").classList.toggle("bad", !!over);
+  renderMemory();
+}
+$("images").onclick = e => {
+  const i = e.target.dataset.i;
+  if (i === undefined) return;
+  URL.revokeObjectURL(images[i].url);
+  images.splice(Number(i), 1);
+  renderImages();
+};
+drop($("image-drop"), $("image-file"), addImages);
+document.addEventListener("paste", e => {
+  const files = [...(e.clipboardData?.files || [])].filter(f => f.type.startsWith("image/"));
+  if (files.length && MODES[mode].maxImages) { e.preventDefault(); addImages(files); }
+});
+
+function setAudio(inp) {
+  if (audio) URL.revokeObjectURL(audio.url);
+  audio = inp;
+  $("audio-media").hidden = !audio; $("audio-drop").hidden = !!audio;
+  $("audio-preview").src = audio ? audio.url : "";
+  $("audio-name").textContent = audio ? audio.label : "";
+}
+drop($("audio-drop"), $("audio-file"), async files => {
+  const f = files[0];
+  if (!f) return;
+  if (!/^(audio|video)\//.test(f.type) && !/\.(wav|mp3|flac|ogg|m4a|aac|opus)$/i.test(f.name)) return showError(`${f.name} is not an audio file.`);
+  showError("");
+  try { setAudio(input(await readFile(f), "audio", "wav", f.name)); } catch (err) { showError(`Could not read ${f.name}: ${err.message}`); }
+});
+$("audio-remove").onclick = () => setAudio(null);
+
+function setVideo(inp) {
+  if (video && !results.some(r => r.url === video.url)) URL.revokeObjectURL(video.url);
+  video = inp;
+  $("video-media").hidden = !video; $("video-drop").hidden = !!video;
+  $("video-preview").src = video ? video.url : "";
+  $("video-name").textContent = video ? video.label : "";
+  $("video-len").textContent = "";
+}
+drop($("video-drop"), $("video-file"), async files => {
+  const f = files[0];
+  if (!f) return;
+  if (!f.type.startsWith("video/")) return showError(`${f.name} is not a video.`);
+  showError("");
+  try { setVideo(input(await readFile(f), "video", "mp4", f.name)); } catch (err) { showError(`Could not read ${f.name}: ${err.message}`); }
+});
+$("video-remove").onclick = () => setVideo(null);
+$("video-preview").onloadedmetadata = () => {
+  const d = $("video-preview").duration;
+  $("video-len").textContent = isFinite(d) ? `Video: ${d.toFixed(1)} s` : "";
+  if (isFinite(d) && $("start").value === "" && $("end").value === "") {
+    $("start").value = (d / 3).toFixed(1); $("end").value = (2 * d / 3).toFixed(1);
+  }
+};
+$("set-start").onclick = () => { if (video) $("start").value = $("video-preview").currentTime.toFixed(1); };
+$("set-end").onclick = () => { if (video) $("end").value = $("video-preview").currentTime.toFixed(1); };
+
+// ------------------------------------------------------------------------------------------- job
+function showError(msg) { $("error").textContent = msg || ""; $("error").classList.toggle("on", !!msg); }
+function setStatus(text) {
+  $("status").classList.toggle("on", text != null);
+  $("status-text").textContent = text || "";
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const dur = s => s < 60 ? `${Math.round(s)} s` : `${Math.floor(s / 60)} min ${Math.round(s % 60)} s`;
+
+function request() {
+  const prompt = $("prompt").value.trim();
+  if (!prompt) throw new Error("Enter a prompt.");
+  const params = {prompt, count: Number($("count").value) || 1, enhance_prompt: $("enhance").checked};
+  if ($("seed").value !== "") params.seed = Number($("seed").value);
+  const files = [];
+  if (mode === "retake") {
+    if (!video) throw new Error("Add the video to retake.");
+    const start = Number($("start").value), end = Number($("end").value);
+    if ($("start").value === "" || $("end").value === "" || !(start < end)) throw new Error("Set the time range: From must be before To.");
+    Object.assign(params, {video: video.name, start_s: start, end_s: end, regenerate: $("regenerate").value});
+    files.push(video);
+  } else {
+    if (mode === "audio") {
+      if (!audio) throw new Error("Add the soundtrack.");
+      params.audio = audio.name; files.push(audio);
+    }
+    const max = MODES[mode].maxImages;
+    if (images.length > max) throw new Error(`At most ${max} image${max > 1 ? "s" : ""} in this mode.`);
+    params.images = images.map(i => i.name); files.push(...images);
+    params.fps = Number($("fps").value);
+    if ($("duration-mode").value === "fixed") { snap($("duration"), 1, 20, 0.5); params.duration_s = Number($("duration").value); }
+    if ($("preset").value !== "auto") {
+      snap($("width"), 256, 2048, 64); snap($("height"), 256, 2048, 64);
+      params.width = Number($("width").value); params.height = Number($("height").value);
+    }
+  }
+  return {params, files};
+}
+
+$("form").onsubmit = async e => {
+  e.preventDefault();
+  if (job) return;
+  showError("");
+  let req;
+  try { req = request(); } catch (err) { return showError(err.message); }
+  const body = new FormData();
+  body.append("request", JSON.stringify({tool: TOOL, params: req.params}));
+  for (const f of req.files) body.append("files", f.blob, f.name);
+  saveSettings();
+
+  const snapshot = {mode, prompt: req.params.prompt, settings: load(SETTINGS_KEY, {}), range: mode === "retake" ? [req.params.start_s, req.params.end_s] : null};
+  $("submit").disabled = true;
+  setStatus("Uploading…");
+  try {
+    const info = await api("POST", "jobs", {body, step: "Submitting the job"});
+    job = {id: info.id, started: Date.now(), count: req.params.count};
+    $("submit").textContent = "Running…";
+    await follow(job, snapshot);
+  } catch (err) {
+    showError(job?.cancelled ? "Cancelled." : err.message);
+  } finally {
+    job = null;
+    setStatus(null);
+    $("submit").disabled = false;
+    $("submit").textContent = MODES[mode].submit;
+  }
+};
+
+async function follow(j, snapshot) {
+  for (;;) {
+    const info = await api("GET", `jobs/${j.id}`, {step: "Checking the job"});
+    if (j.cancelled) throw new Error("Cancelled.");
+    const t = (Date.now() - j.started) / 1000;
+    if (info.state === "queued") {
+      setStatus(info.queue_position ? `Waiting: ${info.queue_position} job${info.queue_position > 1 ? "s" : ""} ahead · ${dur(t)}` : `Starting… · ${dur(t)}`);
+    } else if (info.state === "running") {
+      setStatus(`${await workerPhase(info, j)} · ${dur(t)}`);
+    } else if (info.state === "done") {
+      setStatus("Downloading results…");
+      const added = [];
+      for (const name of info.outputs.filter(n => n.endsWith(".mp4"))) {
+        const blob = await api("GET", `jobs/${j.id}/files/${encodeURIComponent(name)}`, {blob: true, step: `Downloading ${name}`});
+        const seed = (name.match(/_(\d+)\.\w+$/) || [])[1];
+        added.push({name, blob, url: URL.createObjectURL(blob), seed, ...snapshot, seconds: t});
+      }
+      api("DELETE", `jobs/${j.id}`).catch(() => {});  // results are in this tab now
+      results.unshift(...added);
+      renderResults();
+      return;
+    } else {
+      api("DELETE", `jobs/${j.id}`).catch(() => {});
+      throw new Error(info.state === "cancelled" ? "Cancelled." : `Failed: ${info.error || "unknown error"}`
+        + (info.log_tail?.length ? "\n\n" + info.log_tail.slice(-6).join("\n") : ""));
+    }
+    await sleep(2000);
+  }
+}
+
+// running: loading the model or computing (from the dashboard data, no token needed), and which variant
+async function workerPhase(info, j) {
+  try {
+    const r = await fetch(`dashboard/data?since=${Date.now() / 1000}`, {cache: "no-store"});
+    const w = (await r.json()).now.worker;
+    if (w && w.loaded == null) return `Loading the video model (~1 min)`;
+  } catch {}
+  const done = (info.log_tail || []).filter(l => /video_\d+\.mp4: \d+ frames/.test(l)).length;
+  return j.count > 1 ? `Generating variant ${Math.min(done + 1, j.count)} of ${j.count}` : "Generating (takes minutes)";
+}
+
+$("cancel").onclick = async () => {
+  if (!job) return;
+  job.cancelled = true;
+  try { await api("DELETE", `jobs/${job.id}`); } catch (err) { showError(err.message); }
+};
+
+// ------------------------------------------------------------------------------------------- results
+const MODE_NAMES = {generate: "Video", audio: "Audio to video", retake: "Retake"};
+function renderResults() {
+  $("clear").hidden = !results.length;
+  $("results-note").textContent = results.length ? `${results.length} video${results.length > 1 ? "s" : ""}, kept in this tab only` : "";
+  if (!results.length) {
+    $("results").innerHTML = `<div class="empty">Your videos appear here. They stay in this tab only, download the ones you want to keep.<br>A 5 s clip at 1536 × 1024 takes about 2 to 3 minutes, plus about a minute to load the model.</div>`;
+    return;
+  }
+  $("results").innerHTML = results.map((r, i) => `<div class="res">
+    <video src="${r.url}" controls playsinline loop preload="metadata" data-i="${i}"></video>
+    <div class="meta"><b>${MODE_NAMES[r.mode]}</b>${r.seed ? ` · seed ${r.seed}` : ""}<span data-info="${i}"></span>${r.range ? ` · ${r.range[0]}–${r.range[1]} s` : ""} · ${dur(r.seconds)}
+      <div class="prompt" title="${esc(r.prompt)}">${esc(r.prompt)}</div></div>
+    <div class="actions">
+      <a class="btn" href="${r.url}" download="${esc(fileName(r))}">Download</a>
+      ${r.seed ? `<button type="button" class="btn" data-act="reuse" data-i="${i}" title="Prompt, settings and seed of this video back into the form (input files are not restored)">Reuse</button>` : ""}
+      <button type="button" class="btn" data-act="retake" data-i="${i}" title="Regenerate a time range of this video">Retake this</button>
+      <button type="button" class="btn" data-act="frame" data-i="${i}" title="The frame shown in the player as a keyframe, e.g. pause at the end to continue the clip">Frame → keyframe</button>
+    </div></div>`).join("");
+  for (const v of $("results").querySelectorAll("video")) {
+    v.onloadedmetadata = () => {
+      const r = results[v.dataset.i];
+      Object.assign(r, {width: v.videoWidth, height: v.videoHeight, length: v.duration});
+      $("results").querySelector(`[data-info="${v.dataset.i}"]`).textContent = ` · ${v.videoWidth} × ${v.videoHeight} · ${v.duration.toFixed(1)} s`;
+    };
+  }
+}
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"})[c]); }
+function fileName(r) {
+  const slug = r.prompt.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "video";
+  return `${slug}${r.seed ? "-" + r.seed : ""}.mp4`;
+}
+$("results").onclick = async e => {
+  const i = e.target.dataset.i, r = results[i];
+  if (!r || !e.target.dataset.act) return;
+  showError("");
+  if (e.target.dataset.act === "reuse") {
+    const s = r.settings || {};
+    setMode(r.mode);
+    $("prompt").value = r.prompt;
+    $("seed").value = r.seed;
+    $("count").value = 1;
+    applySettings(s);
+    if (r.range) [$("start").value, $("end").value] = r.range;
+  } else if (e.target.dataset.act === "retake") {
+    setMode("retake");
+    $("start").value = $("end").value = "";
+    setVideo({blob: r.blob, name: `video_${++seq}.mp4`, label: fileName(r), url: r.url});
+    $("count").value = 1;
+    $("prompt").value = r.prompt;
+    $("prompt").focus();
+  } else if (e.target.dataset.act === "frame") {
+    const v = $("results").querySelector(`video[data-i="${i}"]`);
+    if (!v.videoWidth) return showError("The video is not loaded yet.");
+    const c = document.createElement("canvas");
+    [c.width, c.height] = [v.videoWidth, v.videoHeight];
+    c.getContext("2d").drawImage(v, 0, 0);
+    const blob = await new Promise(res => c.toBlob(res, "image/png"));
+    if (mode === "retake") setMode("generate");
+    if (images.length >= MODES[mode].maxImages) return showError(`At most ${MODES[mode].maxImages} image${MODES[mode].maxImages > 1 ? "s" : ""} in this mode: remove one first.`);
+    images.push(input(blob, "image", "png", `frame ${v.currentTime.toFixed(1)} s`));
+    renderImages();
+  }
+  saveSettings();
+  window.scrollTo({top: 0, behavior: "smooth"});
+};
+$("clear").onclick = () => {
+  if (!confirm("Remove all results from this page? Download the ones you want to keep first.")) return;
+  results.forEach(r => { if (r.url !== video?.url) URL.revokeObjectURL(r.url); });
+  results = [];
+  renderResults();
+};
+window.addEventListener("beforeunload", e => { if (results.length || job) e.preventDefault(); });
+
+// ------------------------------------------------------------------------------------------- start
+function applySettings(s) {
+  if (s.fps) $("fps").value = s.fps;
+  if (s.durationMode) $("duration-mode").value = s.durationMode;
+  if (s.duration) $("duration").value = s.duration;
+  if (s.preset && [...$("preset").options].some(o => o.value === s.preset)) $("preset").value = s.preset;
+  if (s.preset === "custom") { $("width").value = s.width || 1024; $("height").value = s.height || 576; }
+  if (s.enhance != null) $("enhance").checked = s.enhance;
+  if (s.regenerate) $("regenerate").value = s.regenerate;
+  sync();
+}
+$("preset").innerHTML = `<option value="auto">Auto (1536 × 1024 or the first image's ratio)</option>`
+  + PRESETS.map(([w, h]) => `<option value="${w}x${h}">${w} × ${h}${w === h ? " square" : w > h ? " landscape" : " portrait"} · max ${maxSeconds(w, h, 24).toFixed(0)} s</option>`).join("")
+  + `<option value="custom">Custom…</option>`;
+for (const k of Object.keys(MODES)) $(`tab-${k}`).onclick = () => { setMode(k); saveSettings(); };
+for (const id of ["preset", "duration-mode", "fps"]) $(id).onchange = sync;
+$("duration").onchange = () => { snap($("duration"), 1, 20, 0.5); sync(); };
+for (const id of ["width", "height"]) $(id).onchange = () => { snap($(id), 256, 2048, 64); sync(); };
+for (const id of ["prompt", "count", "enhance", "regenerate"]) $(id).addEventListener("change", saveSettings);
+$("prompt").addEventListener("keydown", e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) $("form").requestSubmit(); });
+
+const saved = load(SETTINGS_KEY, {});
+$("prompt").value = saved.prompt || "";
+$("count").value = saved.count || 1;
+setMode(MODES[saved.mode] ? saved.mode : "generate");
+applySettings(saved);
+renderResults();
+</script>
+</body>
+</html>

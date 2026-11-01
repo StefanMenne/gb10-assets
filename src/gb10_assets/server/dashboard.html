@@ -26,8 +26,8 @@ h2 { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacin
 .muted { color: var(--muted); }
 .small { font-size: 12px; }
 .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 12px; }
-#create-link { font-size: 13px; font-weight: 600; color: var(--accent); text-decoration: none; }
-#create-link:hover { text-decoration: underline; }
+#create-link, .studio-link { font-size: 13px; font-weight: 600; color: var(--accent); text-decoration: none; }
+#create-link:hover, .studio-link:hover { text-decoration: underline; }
 #live { margin-left: auto; font-size: 12px; color: var(--muted); }
 #live::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); margin-right: 6px; }
 #live.down::before { background: var(--bad); }
@@ -91,6 +91,7 @@ select { margin-left: auto; background: var(--card); color: var(--text); border:
     <span class="muted" id="gpu-name"></span>
     <span class="muted small" id="uptime"></span>
     <a href="create" id="create-link">Image studio →</a>
+    <a href="video" class="studio-link">Video studio →</a>
     <span id="live">connecting…</span>
     <button id="unload" type="button" disabled>Unload model</button>
     <div id="power" hidden>
