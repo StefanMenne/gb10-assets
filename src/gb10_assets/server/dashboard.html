@@ -71,6 +71,9 @@ select { margin-left: auto; background: var(--card); color: var(--text); border:
 .kv { display: inline-block; margin: 1px 10px 1px 0; }
 .kv b { font-weight: 500; color: var(--muted); }
 .kv q { quotes: "\201C" "\201D"; }
+#unload { align-self: center; background: var(--card); color: var(--worker); border: 1px solid color-mix(in srgb, var(--worker) 50%, var(--border)); border-radius: 6px; padding: 4px 12px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+#unload:hover:not(:disabled) { background: color-mix(in srgb, var(--worker) 12%, var(--card)); }
+#unload:disabled { opacity: .5; cursor: default; }
 #power:not([hidden]) { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; width: 100%; font-size: 13px; }
 #power label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
 #power input[type=number] { width: 70px; background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 3px 6px; font: inherit; }
@@ -86,6 +89,7 @@ select { margin-left: auto; background: var(--card); color: var(--text); border:
     <span class="muted" id="gpu-name"></span>
     <span class="muted small" id="uptime"></span>
     <span id="live">connecting…</span>
+    <button id="unload" type="button" disabled>Unload model</button>
     <div id="power" hidden>
       <label><input type="checkbox" id="idle-on"> Shut down after</label>
       <input type="number" id="idle-min" min="1" max="10080" step="1" aria-label="minutes without jobs"> min without jobs
@@ -407,6 +411,28 @@ $("shutdown").onclick = () => {
     powerAction(() => send("POST", "shutdown"));
 };
 
+// ------------------------------------------------------------------------------------------- unload
+let unloadBusy = false;
+function renderUnload(d) {
+  const w = d.now && d.now.worker, running = d.tools.some(t => t.running), b = $("unload");
+  b.disabled = unloadBusy || !w || running;
+  b.textContent = unloadBusy ? "Unloading…" : w ? `Unload ${w.tool}` : "No model loaded";
+  b.title = !w ? "No worker holds memory" : running ? "A job is running; unload after it has finished"
+    : `Stop the ${w.tool} worker and free its memory now`;
+}
+$("unload").onclick = async () => {
+  unloadBusy = true;
+  if (lastData) renderUnload(lastData);
+  try {
+    await send("POST", "unload");
+  } catch (e) {
+    alert(`Failed: ${e.message}`);
+  } finally {
+    unloadBusy = false;
+    if (lastData) renderUnload(lastData);
+  }
+};
+
 // ------------------------------------------------------------------------------------------- polling
 let lastData = null;
 async function poll() {
@@ -426,6 +452,7 @@ async function poll() {
     renderTools(d.tools);
     renderEvents(d.events);
     renderPower(d.power);
+    renderUnload(d);
     $("log-note").textContent = d.server.details ? "" : "job parameters hidden (DASHBOARD_DETAILS=0)";
     $("live").textContent = `updated ${clock(Date.now())}`;
     $("live").classList.remove("down");

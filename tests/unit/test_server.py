@@ -212,3 +212,31 @@ def test_restore_after_restart(settings):
     q2 = make_queue(settings)
     assert q2.get(done).state == JobState.done and q2.get(done).outputs == ["image_1.png"]
     assert q2.get(lost).state == JobState.failed and "restarted" in q2.get(lost).error
+
+
+def test_unload_idle_worker(settings):
+    settings.worker_idle_s = 3600
+    queue = make_queue(settings)
+    with TestClient(create_app(settings, queue)) as client:
+        assert client.post("/unload").status_code == 401
+        assert client.post("/unload", headers=AUTH).json() == {"unloaded": None}
+        job_id = submit(client, {"prompt": "fox"}).json()["id"]
+        wait_for(lambda: client.get(f"/jobs/{job_id}", headers=AUTH).json()["state"] == "done")
+        worker = queue._worker
+        assert worker is not None and worker.alive()  # kept for WORKER_IDLE_S
+        assert client.post("/unload", headers=AUTH).json() == {"unloaded": "flux2-klein"}
+        assert worker.stopped and queue.status()["worker"] is None
+        assert queue.events.recent()[-1] | {"time": None} == {
+            "time": None, "kind": "unload", "tool": "flux2-klein", "reason": "requested on the dashboard"}
+
+
+def test_unload_refused_while_a_job_runs(settings):
+    queue = make_queue(settings, job_seconds=10)
+    with TestClient(create_app(settings, queue)) as client:
+        job_id = submit(client, {"prompt": "fox"}).json()["id"]
+        wait_for(lambda: client.get(f"/jobs/{job_id}", headers=AUTH).json()["state"] == "running"
+                 and queue._worker is not None)
+        r = client.post("/unload", headers=AUTH)
+        assert r.status_code == 409 and "flux2-klein job is running" in r.text
+        assert queue._worker.alive()
+        queue.cancel(job_id)

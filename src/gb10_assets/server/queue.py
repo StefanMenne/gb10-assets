@@ -284,6 +284,20 @@ class JobQueue:
             self.events.add("unload", tool=worker.tool, reason=reason)
             worker.stop()
 
+    def unload(self) -> str | None:
+        """Stop the idle worker and free its memory; returns its tool, None if no worker was loaded.
+        Raises RuntimeError while a job runs: its worker is busy."""
+        with self._cond:
+            w = self._worker
+            if w is None:
+                return None
+            if self._running:
+                raise RuntimeError(f"a {self._jobs[self._running].info.tool} job is running; wait for it or cancel it")
+            self._worker = None
+            self.events.add("unload", tool=w.tool, reason="requested on the dashboard")
+        w.stop()  # outside the lock; when this returns, the memory is free
+        return w.tool
+
     def _next_uses(self, tool: str) -> bool:
         return bool(self._pending) and self._jobs[self._pending[0]].info.tool == tool
 

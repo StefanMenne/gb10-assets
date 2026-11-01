@@ -98,6 +98,13 @@ def create_app(settings: Settings, queue: JobQueue | None = None) -> FastAPI:
         power.set_idle(idle)
         return power.state()
 
+    @app.post("/unload", dependencies=[Depends(auth)])
+    def unload() -> dict:
+        try:
+            return {"unloaded": queue.unload()}
+        except RuntimeError as e:
+            raise HTTPException(409, str(e)) from None
+
     @app.get("/tools", dependencies=[Depends(auth)])
     def tools() -> dict:
         return {name: model.model_json_schema() for name, model in REQUESTS.items() if name in TOOLS}
