@@ -323,6 +323,8 @@ class JobState(str, Enum):
 class JobInfo(BaseModel):
     id: str
     tool: str
+    version: str | None = Field(None, description="gb10-assets version of the server that created the job; the "
+                                "same major version, tool, parameters and seed give the same result")
     state: JobState
     created_at: datetime
     started_at: datetime | None = None

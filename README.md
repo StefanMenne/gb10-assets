@@ -294,6 +294,24 @@ The image holds only the code of this repo and the server's Python environment. 
 along, from torch to model code such as LTX-2 (LTX-2.x Community License) and the weights, is downloaded on
 each GB10 system by `install`.
 
+## Versioning
+
+A version `MAJOR.MINOR.PATCH` is the same for the server, the client and the Claude Code plugin, and is tagged
+`v<version>` in git. The major version is a reproducibility promise: within it, the same tool, parameters and
+seed give the same result.
+
+| Bump | When |
+|---|---|
+| major | a tool gives another result for the same request and seed (new model weights, ComfyUI, torch or other pinned dependency, changed defaults or processing), or the API changes incompatibly |
+| minor | new tools, new optional parameters whose default keeps the old result, new client features |
+| patch | fixes, documentation, dashboard: nothing that changes a result |
+
+A tool with a new model or dependency can also be added next to the old one (a new tool or an option),
+which keeps the old results reproducible and is only a minor release. Each job reports the server version
+that ran it (`version` in `gb10-assets status <job>`); jobs without a seed get a random one, which is part of
+the output file names (`image_<seed>.png`). Results are reproducible on GB10 with the same NVIDIA driver; the
+driver is not part of the image.
+
 ## Updating
 
 ```sh

@@ -5,6 +5,7 @@ import pytest
 from conftest import TOKEN, FakeWorker, wait_for
 from fastapi.testclient import TestClient
 
+from gb10_assets import __version__
 from gb10_assets.server import runners
 from gb10_assets.server.app import create_app
 from gb10_assets.server.config import Settings
@@ -67,6 +68,7 @@ def test_job_roundtrip(api):
     wait_for(lambda: api.get(f"/jobs/{job_id}", headers=AUTH).json()["state"] == "done")
     info = api.get(f"/jobs/{job_id}", headers=AUTH).json()
     assert info["outputs"] == ["image_1.png"]
+    assert info["version"] == __version__
     assert api.get(f"/jobs/{job_id}/files/image_1.png", headers=AUTH).content == b"png:fox"
     assert api.get(f"/jobs/{job_id}/files/log.txt", headers=AUTH).status_code == 404  # only listed outputs
     assert api.delete(f"/jobs/{job_id}", headers=AUTH).status_code == 204

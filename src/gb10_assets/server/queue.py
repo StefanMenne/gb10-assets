@@ -18,6 +18,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Callable
 
+from .. import __version__
 from ..shared.schemas import JobInfo, JobState
 from .config import Settings
 from .monitor import EventLog, summarize_params, weight_models
@@ -98,7 +99,7 @@ class JobQueue:
         path = self.s.jobs_dir / job_id
         (path / "in").mkdir(parents=True)
         (path / "out").mkdir()
-        return Job(JobInfo(id=job_id, tool=tool, state=JobState.queued, created_at=_now()), params, path)
+        return Job(JobInfo(id=job_id, tool=tool, version=__version__, state=JobState.queued, created_at=_now()), params, path)
 
     def enqueue(self, job: Job) -> JobInfo:
         with self._cond:
