@@ -1,8 +1,7 @@
 """Pixal3D worker: one image to a textured 3D model (GLB), with the image-to-model workflow of ComfyUI.
 
-ComfyUI (GPL-3.0, fetched by post_install.sh into <install>/build/ComfyUI) runs as a separate headless process on
-a local port; this worker sends it the workflow per variant over its HTTP API and collects the files. Models stay
-loaded in ComfyUI between jobs and are freed when the worker exits (ComfyUI exits with it).
+ComfyUI (GPL-3.0, fetched by post_install.sh into <install>/build/ComfyUI) runs headless next to the worker
+(tools/_comfyui.py), which sends it the workflow per variant.
 Weights: $WEIGHTS_DIR in ComfyUI's model folder layout (download.sh).
 
 The workflow is Comfy-Org's template "Pixal3D & TRELLIS.2: Image to Model" (workflow_templates,
@@ -12,20 +11,14 @@ background removal and crop, MoGe field of view, Pixal3D conditioning, sparse st
 baking of base color, metallic, roughness, normal and ambient occlusion maps.
 Outputs: model_<seed>.glb per variant and model_<seed>.png, a front render of it.
 """
-import atexit
-import json
 import os
 import shutil
-import socket
-import subprocess
 import sys
-import tempfile
 import time
-import urllib.error
-import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _comfyui import start  # noqa: E402
 from _worker import log, seeds, serve  # noqa: E402
 
 ROOT = Path(os.environ.get("WEIGHTS_DIR", "weights"))
@@ -37,94 +30,10 @@ FILES = {
     "background_removal": "birefnet.safetensors",
     "geometry_estimation": "moge_2_vitl_normal_fp16.safetensors",
 }
-READY_S = 300
-
-
-class ComfyUI:
-    def __init__(self):
-        self.base = Path(tempfile.mkdtemp(prefix="gb10-comfyui-"))
-        (self.base / "frontend").mkdir()   # headless: no web frontend installed
-        (self.base / "custom_nodes").mkdir()   # stays empty, ComfyUI only lists it
-        paths = self.base / "extra_model_paths.yaml"
-        paths.write_text("gb10:\n  base_path: " + json.dumps(str(ROOT)) + "\n"
-                         + "".join(f"  {folder}: {folder}/\n" for folder in FILES))
-        with socket.socket() as s:
-            s.bind(("127.0.0.1", 0))
-            self.port = s.getsockname()[1]
-        self.url = f"http://127.0.0.1:{self.port}"
-        # stdout too goes to stderr (the job log); same process group, so killing the worker kills ComfyUI
-        self.proc = subprocess.Popen(
-            [sys.executable, "main.py", "--listen", "127.0.0.1", "--port", str(self.port), "--disable-auto-launch",
-             "--base-directory", str(self.base), "--extra-model-paths-config", str(paths),
-             "--front-end-root", str(self.base / "frontend")],
-            cwd=COMFYUI, stdout=sys.stderr, stderr=sys.stderr)
-        atexit.register(self.close)
-
-    def close(self):
-        if self.proc.poll() is None:
-            self.proc.terminate()
-            try:
-                self.proc.wait(30)
-            except subprocess.TimeoutExpired:
-                self.proc.kill()
-        shutil.rmtree(self.base, ignore_errors=True)
-
-    def call(self, path, body=None):
-        data = json.dumps(body).encode() if body is not None else None
-        req = urllib.request.Request(self.url + path, data, {"Content-Type": "application/json"})
-        with urllib.request.urlopen(req, timeout=30) as r:
-            return json.load(r)
-
-    def check_alive(self):
-        if self.proc.poll() is not None:
-            # leave the worker: the server starts a new one (and ComfyUI with it) for the next job
-            raise SystemExit(f"ComfyUI exited with code {self.proc.returncode}")
-
-    def wait_ready(self):
-        deadline = time.time() + READY_S
-        while True:
-            self.check_alive()
-            try:
-                return self.call("/system_stats")
-            except (urllib.error.URLError, ConnectionError):
-                if time.time() > deadline:
-                    raise RuntimeError(f"ComfyUI not ready after {READY_S}s") from None
-                time.sleep(1)
-
-    def run(self, prompt):
-        """Queue a workflow in API format and wait for it; returns its outputs per node id."""
-        try:
-            pid = self.call("/prompt", {"prompt": prompt})["prompt_id"]
-        except urllib.error.HTTPError as e:   # validation errors come as 400 with details
-            raise RuntimeError(f"ComfyUI rejected the workflow: {e.read().decode()[:2000]}") from None
-        while True:
-            self.check_alive()
-            entry = self.call(f"/history/{pid}").get(pid)
-            if entry and entry["status"].get("completed") is not None:
-                break
-            time.sleep(1)
-        if entry["status"].get("status_str") != "success":
-            errors = [m[1] for m in entry["status"].get("messages", []) if m[0] == "execution_error"]
-            detail = "; ".join(f"{e.get('node_type')}: {e.get('exception_message', '').strip()}" for e in errors)
-            raise RuntimeError(f"workflow failed: {detail or entry['status']}")
-        return entry["outputs"]
-
-    def output_file(self, item):
-        return self.base / "output" / item.get("subfolder", "") / item["filename"]
 
 
 def load():
-    missing = [f"{folder}/{name}" for folder, names in FILES.items()
-               for name in ([names] if isinstance(names, str) else names) if not (ROOT / folder / name).exists()]
-    if missing:
-        raise FileNotFoundError(f"{', '.join(missing)} missing in {ROOT}, install the tool on the GB10 system: "
-                                "scripts/docker.sh install pixal3d")
-    if not (COMFYUI / "main.py").exists():
-        raise FileNotFoundError(f"ComfyUI missing in {COMFYUI}: scripts/docker.sh install pixal3d")
-    comfy = ComfyUI()
-    stats = comfy.wait_ready()
-    log(f"ComfyUI {stats['system'].get('comfyui_version')} on port {comfy.port}")
-    return comfy
+    return start(COMFYUI, ROOT, FILES, "pixal3d")
 
 
 def workflow(image, seed, p):
@@ -203,8 +112,7 @@ def workflow(image, seed, p):
 
 
 def run(comfy, params, job_dir):
-    inputs = comfy.base / "input"
-    inputs.mkdir(exist_ok=True)
+    inputs = comfy.input_dir
     image = f"{job_dir.name}_{params['image']}"
     shutil.copy(job_dir / "in" / params["image"], inputs / image)
     names = []

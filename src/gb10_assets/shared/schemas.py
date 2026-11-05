@@ -236,6 +236,17 @@ class ImageTo3D(JobRequest):
     count: Annotated[int, Field(ge=1, le=4, description="Number of variants (seeds seed..seed+count-1)")] = 1
 
 
+class RemoveBackground(JobRequest):
+    """BiRefNet (run by ComfyUI): cut the main object out of images, at their full resolution. Per image
+    <stem>_cutout.png with a transparent background, optionally <stem>_mask.png."""
+
+    tool: ClassVar[str] = "birefnet"
+    input_fields: ClassVar[tuple[str, ...]] = ("images",)
+
+    images: list[FileName] = Field(min_length=1, max_length=32, description="The model is loaded once for all")
+    mask: bool = Field(False, description="Also return the mask (white = object, grayscale at soft edges)")
+
+
 # tools/blender/scripts/<name>.py (tests check that both agree); usage and options in each script's docstring
 BLENDER_SCRIPTS = {
     "glb_post": "in.glb out.glb [--height M] [--emission 0.5] [--tex 1024]: stand a generated model on the "
@@ -285,7 +296,7 @@ class BlenderScript(JobRequest):
 
 REQUESTS: dict[str, type[JobRequest]] = {
     m.tool: m for m in (GenerateImage, EditImage, Speak, SpeakMultilingual, GenerateVideo, ImageTo3D,
-                        BlenderScript)}
+                        RemoveBackground, BlenderScript)}
 
 
 class SubmitJob(BaseModel):

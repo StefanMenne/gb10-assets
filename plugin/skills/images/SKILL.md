@@ -1,6 +1,6 @@
 ---
 name: images
-description: Create and edit images for games on the gb10-assets server (generate_image with FLUX.2 klein, edit_image with Qwen-Image-Edit): backgrounds and scenes, characters, items, sprites, icons, UI elements, textures, concept art, variants and edits of existing pictures. Use when the user wants any picture or several variants, a changed or combined image, or a start image for video or 3D.
+description: Create and edit images for games on the gb10-assets server (generate_image with FLUX.2 klein, edit_image with Qwen-Image-Edit, remove_background with BiRefNet): backgrounds and scenes, characters, items, sprites, icons, UI elements, textures, concept art, variants and edits of existing pictures. Use when the user wants any picture or several variants, a changed or combined image, a cutout with transparent background, or a start image for video or 3D.
 ---
 
 # Images for games
@@ -17,6 +17,7 @@ results, or the sheet, with the Read tool before using them. Then `fetch_result(
 | change something specific: object, text, background, light, time of day, expression | `edit_image` with 1 image |
 | combine: the character from image 1 in the scene of image 2 | `edit_image` with 2-3 images |
 | the same character, item or place in a new situation | `edit_image` with the existing image as input |
+| transparent background: sprite, item, character to place in a scene | `remove_background` (seconds, full resolution; generate it on a plain contrasting background first) |
 
 ## One style for the whole game
 

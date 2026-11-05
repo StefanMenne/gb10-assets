@@ -12,6 +12,7 @@ from gb10_assets.shared.schemas import (
     GenerateImage,
     GenerateVideo,
     ImageTo3D,
+    RemoveBackground,
     JobState,
     Speak,
     SpeakMultilingual,
@@ -183,6 +184,18 @@ def test_image_to_3d():
 def test_image_to_3d_invalid(params):
     with pytest.raises(ValidationError):
         ImageTo3D.model_validate(params)
+
+
+def test_remove_background():
+    r = RemoveBackground(images=["a.png", "b.jpg"])
+    assert r.input_files() == ["a.png", "b.jpg"] and not r.mask and REQUESTS["birefnet"] is RemoveBackground
+
+
+@pytest.mark.parametrize("params", [{}, {"images": []}, {"images": ["a.png"] * 33}, {"images": ["../a.png"]},
+                                    {"images": ["a.png"], "seed": 1}])
+def test_remove_background_invalid(params):
+    with pytest.raises(ValidationError):
+        RemoveBackground.model_validate(params)
 
 
 def test_blender_script():

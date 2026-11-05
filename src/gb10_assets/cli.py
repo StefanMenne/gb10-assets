@@ -12,6 +12,7 @@
     gb10-assets audio-to-video "prompt" -a song.wav -o DIR [-i first.png] [-d 10]
     gb10-assets retake in.mp4 "prompt" --start 2 --end 4 -o DIR [--regenerate video|audio]
     gb10-assets 3d object.png -o DIR [--resolution 1024] [--faces 50000] [--texture 2048] [--keep-background]
+    gb10-assets cutout image.png [image2.png ...] -o DIR [--mask]
     gb10-assets blender [FILE ...] (--script NAME | --code FILE.py) -o DIR [-- ARGS ...]   (--list: the scripts)
     gb10-assets status JOB | fetch JOB DIR [--wait 600] | log JOB | cancel JOB
 
@@ -153,6 +154,10 @@ def main(argv: list[str] | None = None) -> None:
     d3.add_argument("-n", "--count", type=int, default=1)
     d3.add_argument("--seed", type=int)
 
+    co = sub.add_parser("cutout", parents=[gen], help="remove the background of images, PNG with alpha (BiRefNet)")
+    co.add_argument("images", nargs="+")
+    co.add_argument("--mask", action="store_true", help="also save the mask")
+
     bl = sub.add_parser("blender", parents=[gen], help="run a Blender script on files (bundled script or own code)",
                         usage="gb10-assets blender [FILE ...] (--script NAME | --code FILE.py) [-o DIR] [--no-wait] "
                               "[-- ARGS ...]",
@@ -229,6 +234,8 @@ def main(argv: list[str] | None = None) -> None:
             _submit_and_fetch(a, "pixal3d", {"image": a.image, "remove_background": not a.keep_background,
                                              "resolution": a.resolution, "max_faces": a.faces,
                                              "texture_size": a.texture, "count": a.count, "seed": a.seed})
+        elif a.cmd == "cutout":
+            _submit_and_fetch(a, "birefnet", {"images": a.images, "mask": a.mask})
         elif a.cmd == "blender":
             code = Path(a.code).read_text() if a.code else None
             _submit_and_fetch(a, "blender", {"files": a.files, "script": a.script, "code": code,

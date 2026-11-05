@@ -264,6 +264,16 @@ def build(adapter: Adapter | None = None) -> MCPServer:
                   "max_faces": max_faces, "texture_size": texture_size, "count": count, "seed": seed}
         return submitted(adapter.client.submit("pixal3d", params))
 
+    @mcp.tool()
+    def remove_background(
+        images: Annotated[list[str], Field(description="Local paths of the images (1-32)")],
+        mask: Annotated[bool, Field(description="Also return the mask (white = object)")] = False,
+    ) -> dict:
+        """Cut the main object (character, item, product, person) out of images with BiRefNet, at the image's
+        full resolution. Outputs <stem>_cutout.png per image with a transparent background, with mask=True also
+        <stem>_mask.png. About a second per image after a few seconds of loading. Returns a job_id."""
+        return submitted(adapter.client.submit("birefnet", {"images": images, "mask": mask}))
+
     @mcp.tool(description=BLENDER_DESCRIPTION.format(
         scripts="\n".join(f"- {name} {usage}" for name, usage in BLENDER_SCRIPTS.items())))
     def blender(
