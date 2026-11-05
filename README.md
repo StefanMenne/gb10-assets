@@ -30,7 +30,7 @@ The server's [dashboard](#dashboard) shows GPU, memory and tool state and an eve
 | `confucius-tts` | [Confucius4-TTS](https://huggingface.co/netease-youdao/Confucius4-TTS) | cross-lingual voice cloning (e.g. a German voice speaking Thai); 14 languages incl. th, vi, id, ms | Apache-2.0 | ~6 GB | `gb10-assets speak-multilingual` |
 | `ltx-video` | [LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5) 22B distilled, NVFP4 | video with sound from text or keyframe images, video for an audio track, retake of a time range | [LTX-2.x Community](https://github.com/Lightricks/LTX-2/blob/main/LICENSE-2_x)¹ | ~50 GB | `gb10-assets video`, `audio-to-video`, `retake` |
 | `pixal3d` | [Pixal3D](https://huggingface.co/Comfy-Org/Pixal3D) (on TRELLIS.2), run by [ComfyUI](https://github.com/Comfy-Org/ComfyUI) | one image to a textured 3D model: GLB with PBR maps (base color, metallic, roughness, normal, occlusion) | MIT² | ~9 GB | `gb10-assets 3d` |
-| `birefnet` | [BiRefNet](https://huggingface.co/Comfy-Org/BiRefNet), run by [ComfyUI](https://github.com/Comfy-Org/ComfyUI) | remove the background: PNG with alpha at the image's full resolution, optionally the mask | MIT² | ~0.4 GB | `gb10-assets cutout` |
+| `birefnet` | [BiRefNet-matting](https://huggingface.co/ZhengPeng7/BiRefNet-matting), run by [ComfyUI](https://github.com/Comfy-Org/ComfyUI) | remove the background: PNG with soft alpha (hair, fur, motion blur) at the image's full resolution, optionally the mask | MIT² | ~0.9 GB | `gb10-assets cutout` |
 | `blender` | [Blender](https://www.blender.org) 5.2 as a Python module (bpy), Cycles and EEVEE on the GPU | Python scripts on 3D models: bundled ones for rigging and animating figures, texture and eye fixes, previews and videos of talking figures, or own code | GPL-3.0³ | none (1.9 GB installed) | `gb10-assets blender` |
 
 ¹ Not an open-source license: free, also commercially, for companies under $10M annual revenue; the model is
@@ -176,6 +176,7 @@ gb10-assets speak-multilingual "สวัสดีครับ ยินดี�
 gb10-assets video "a red fox trots through deep snow, the camera follows it, wind howls" -o ~/gb10-videos
 gb10-assets video "the knight turns and walks away" -i knight.png -d 6 -o ~/gb10-videos         # image to video
 gb10-assets video "the flower blooms" -i bud.png -i bloom.png -d 4 -o ~/gb10-videos              # first + last frame
+gb10-assets video "the fox walks in place" -i fox.png -i fox.png -d 3 --frames -o ~/gb10-videos # + lossless PNGs
 gb10-assets audio-to-video "a woman sings into a microphone on stage" -a song.wav -i singer.png -o ~/gb10-videos
 gb10-assets retake clip.mp4 "the fox jumps over a log" --start 2 --end 4 -o ~/gb10-videos       # edit a segment
 gb10-assets 3d chair.png -o ~/gb10-3d                                                          # image to GLB
@@ -202,8 +203,9 @@ curl -s -H "$H" -o fox.png "$GB10_ASSETS_URL/jobs/<id>/files/<output-name>.png"
 ### Claude Code plugin
 
 The plugin gives Claude Code all tools as MCP tools (`generate_image`, `image_to_3d`, `blender`, ...) plus skills
-for animated game figures, voice lines and troubleshooting. It needs only [uv](https://docs.astral.sh/uv/); the
-MCP server is started with `uvx` from this repo, so the client installation above is optional. In Claude Code:
+for animated 3D game figures, 2D sprite animations, voice lines and troubleshooting. It needs only
+[uv](https://docs.astral.sh/uv/); the MCP server is started with `uvx` from this repo, so the client installation
+above is optional. In Claude Code:
 
 ```
 /plugin install gb10-assets --marketplace StefanMenne/gb10-assets

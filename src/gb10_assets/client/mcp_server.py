@@ -200,12 +200,16 @@ def build(adapter: Adapter | None = None) -> MCPServer:
         count: Annotated[int, Field(description="Number of variants in this job (1-8)")] = 1,
         seed: Annotated[int | None, Field(description="Start seed; variants use seed..seed+count-1")] = None,
         enhance_prompt: Annotated[bool, Field(description="Expand a short prompt with the text encoder first")] = False,
+        frames: Annotated[bool, Field(description=(
+            "Also return every frame lossless as PNGs in video_<seed>_frames.zip, for keying and sprites; never "
+            "take such frames from the MP4"))] = False,
     ) -> dict:
         """Create a video with sound from a text prompt with LTX-2.5, optionally starting from an image or
         interpolating between keyframe images. Each variant is a video_<seed>.mp4 plus video_<seed>.jpg with four
-        frames to look at. Takes minutes; returns a job_id, fetch with fetch_result."""
+        frames to look at (with frames=True also video_<seed>_frames.zip). Takes minutes; returns a job_id, fetch with fetch_result."""
         params = {"prompt": prompt, "images": images or [], "duration_s": duration_s, "width": width,
-                  "height": height, "fps": fps, "count": count, "seed": seed, "enhance_prompt": enhance_prompt}
+                  "height": height, "fps": fps, "count": count, "seed": seed, "enhance_prompt": enhance_prompt,
+                  "frames": frames}
         return submitted(adapter.client.submit("ltx-video", params))
 
     @mcp.tool()
@@ -269,9 +273,9 @@ def build(adapter: Adapter | None = None) -> MCPServer:
         images: Annotated[list[str], Field(description="Local paths of the images (1-32)")],
         mask: Annotated[bool, Field(description="Also return the mask (white = object)")] = False,
     ) -> dict:
-        """Cut the main object (character, item, product, person) out of images with BiRefNet, at the image's
-        full resolution. Outputs <stem>_cutout.png per image with a transparent background, with mask=True also
-        <stem>_mask.png. About a second per image after a few seconds of loading. Returns a job_id."""
+        """Cut the main object (character, item, product, person) out of images with BiRefNet-matting (soft
+        alpha at hair, fur and motion blur), at the image's full resolution. Outputs <stem>_cutout.png per image
+        with a transparent background, with mask=True also <stem>_mask.png. About a second per image after a few seconds of loading. Returns a job_id."""
         return submitted(adapter.client.submit("birefnet", {"images": images, "mask": mask}))
 
     @mcp.tool(description=BLENDER_DESCRIPTION.format(

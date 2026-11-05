@@ -1,4 +1,4 @@
-"""BiRefNet worker: removes the background of images with ComfyUI's native background removal nodes.
+"""BiRefNet-matting worker: removes the background of images with ComfyUI's native background removal nodes.
 
 ComfyUI (GPL-3.0, fetched by post_install.sh into <install>/build/ComfyUI) runs headless next to the worker
 (tools/_comfyui.py), which sends it one workflow per image. BiRefNet sees the image at 1024x1024; its mask is
@@ -19,7 +19,7 @@ from _worker import log, serve  # noqa: E402
 
 ROOT = Path(os.environ.get("WEIGHTS_DIR", "weights"))
 COMFYUI = ROOT.parent / "build" / "ComfyUI"   # post_install.sh
-FILES = {"background_removal": "birefnet.safetensors"}
+FILES = {"background_removal": "model.safetensors"}   # BiRefNet-matting (download.sh)
 
 
 def load():

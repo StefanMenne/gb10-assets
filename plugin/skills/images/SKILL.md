@@ -1,6 +1,6 @@
 ---
 name: images
-description: "Create and edit images for games on the gb10-assets server (generate_image with FLUX.2 klein, edit_image with Qwen-Image-Edit, remove_background with BiRefNet): backgrounds and scenes, characters, items, sprites, icons, UI elements, textures, concept art, variants and edits of existing pictures. Use when the user wants any picture or several variants, a changed or combined image, a cutout with transparent background, or a start image for video or 3D."
+description: "Create and edit images for games on the gb10-assets server (generate_image with FLUX.2 klein, edit_image with Qwen-Image-Edit, remove_background with BiRefNet-matting): backgrounds and scenes, characters, items, sprites, icons, UI elements, textures, concept art, variants and edits of existing pictures. Use when the user wants any picture or several variants, a changed or combined image, a cutout with transparent background, or a start image for video or 3D."
 ---
 
 # Images for games
@@ -17,7 +17,8 @@ results, or the sheet, with the Read tool before using them. Then `fetch_result(
 | change something specific: object, text, background, light, time of day, expression | `edit_image` with 1 image |
 | combine: the character from image 1 in the scene of image 2 | `edit_image` with 2-3 images |
 | the same character, item or place in a new situation | `edit_image` with the existing image as input |
-| transparent background: sprite, item, character to place in a scene | `remove_background` (seconds, full resolution; generate it on a plain contrasting background first) |
+| transparent background: item, character to place in a scene | `remove_background` (seconds, full resolution, soft edges) |
+| animated 2D character, walk cycle, sprite sheet | see the sprite-animation skill |
 
 ## One style for the whole game
 
@@ -33,7 +34,7 @@ what the asset is used for; there is no default view.
 | Asset | What to say | Size |
 |---|---|---|
 | background, scene, adventure location | place, objects, mood, time of day, camera ("wide shot, eye level", "side view for a 2D platformer"); leave room where characters walk; no characters unless wanted | game resolution, e.g. 1920x1088 or 2048x1152, crop afterwards |
-| character, creature, item to cut out | the whole subject, uncropped, the view the game needs, plain contrasting background | square or upright, 1024 |
+| character, creature, item to cut out | the whole subject, uncropped, the view the game needs, even light, no floor shadow, plain background in a color that does not occur in the subject | square or upright, 1024 |
 | sprite, icon, UI element | single centered object, clear silhouette, flat or plain background, readable when small | square 1024, scale down afterwards |
 | texture, material | "seamless tileable texture of ...", top-down, even light, no perspective; seams are not guaranteed, check them | square 1024-2048 |
 | concept art, key art, cover | free composition, as for an illustration | as needed |

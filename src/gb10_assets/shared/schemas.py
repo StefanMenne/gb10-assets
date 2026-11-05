@@ -190,6 +190,8 @@ class GenerateVideo(JobRequest):
     height: VideoSide | None = None
     fps: int = Field(24, ge=12, le=50, description="Frame rate; a retake keeps the frame rate of the video")
     enhance_prompt: bool = Field(False, description="Let the Gemma text encoder expand a short prompt first")
+    frames: bool = Field(False, description=(
+        "Also return every frame lossless as PNGs in video_<seed>_frames.zip (for keying and sprites)"))
     seed: Seed | None = None
     count: Annotated[int, Field(ge=1, le=8, description="Number of variants (seeds seed..seed+count-1)")] = 1
 
@@ -237,8 +239,8 @@ class ImageTo3D(JobRequest):
 
 
 class RemoveBackground(JobRequest):
-    """BiRefNet (run by ComfyUI): cut the main object out of images, at their full resolution. Per image
-    <stem>_cutout.png with a transparent background, optionally <stem>_mask.png."""
+    """BiRefNet-matting (run by ComfyUI): cut the main object out of images with soft edges, at their full
+    resolution. Per image <stem>_cutout.png with a transparent background, optionally <stem>_mask.png."""
 
     tool: ClassVar[str] = "birefnet"
     input_fields: ClassVar[tuple[str, ...]] = ("images",)

@@ -8,7 +8,7 @@
     gb10-assets voice "description" "text" -o DIR [-l de] [-n 4] [--seed 1]
     gb10-assets speak "text" ["text" ...] -r ref.wav [-t "transcript" | -T ref.txt] -o DIR [-l de]
     gb10-assets speak-multilingual "text" ["text" ...] -r ref.wav -l th -o DIR
-    gb10-assets video "prompt" -o DIR [-i first.png [-i last.png]] [-d 5] [-W 1536 -H 1024] [--fps 24] [-n 2]
+    gb10-assets video "prompt" -o DIR [-i first.png [-i last.png]] [-d 5] [-W 1536 -H 1024] [--fps 24] [-n 2] [--frames]
     gb10-assets audio-to-video "prompt" -a song.wav -o DIR [-i first.png] [-d 10]
     gb10-assets retake in.mp4 "prompt" --start 2 --end 4 -o DIR [--regenerate video|audio]
     gb10-assets 3d object.png -o DIR [--resolution 1024] [--faces 50000] [--texture 2048] [--keep-background]
@@ -123,6 +123,7 @@ def main(argv: list[str] | None = None) -> None:
     vi.add_argument("-H", "--height", type=int)
     vi.add_argument("--fps", type=int, default=24)
     vi.add_argument("--enhance", action="store_true", help="expand the prompt with the text encoder")
+    vi.add_argument("--frames", action="store_true", help="also every frame lossless as PNGs (zip)")
     vi.add_argument("-n", "--count", type=int, default=1)
     vi.add_argument("--seed", type=int)
 
@@ -154,7 +155,7 @@ def main(argv: list[str] | None = None) -> None:
     d3.add_argument("-n", "--count", type=int, default=1)
     d3.add_argument("--seed", type=int)
 
-    co = sub.add_parser("cutout", parents=[gen], help="remove the background of images, PNG with alpha (BiRefNet)")
+    co = sub.add_parser("cutout", parents=[gen], help="remove the background of images, PNG with alpha (BiRefNet-matting)")
     co.add_argument("images", nargs="+")
     co.add_argument("--mask", action="store_true", help="also save the mask")
 
@@ -220,7 +221,8 @@ def main(argv: list[str] | None = None) -> None:
         elif a.cmd == "video":
             _submit_and_fetch(a, "ltx-video", {"prompt": a.prompt, "images": a.image, "duration_s": a.duration,
                                                "width": a.width, "height": a.height, "fps": a.fps,
-                                               "enhance_prompt": a.enhance, "count": a.count, "seed": a.seed})
+                                               "enhance_prompt": a.enhance, "frames": a.frames, "count": a.count,
+                                               "seed": a.seed})
         elif a.cmd == "audio-to-video":
             _submit_and_fetch(a, "ltx-video", {"prompt": a.prompt, "audio": a.audio,
                                                "images": [a.image] if a.image else [], "duration_s": a.duration,

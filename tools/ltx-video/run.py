@@ -13,7 +13,8 @@ Modes, chosen by the inputs (see GenerateVideo in gb10_assets/shared/schemas.py)
   retake          RetakePipeline (distilled): regenerates start_s..end_s of the video and/or its audio. The input
                   is conformed first: 8k+1 frames, sides cropped to multiples of 32.
 Outputs: video_<seed>.mp4 (H.264 + AAC) per variant and video_<seed>.jpg with four frames of it, so a client
-that cannot play videos can still look at the result.
+that cannot play videos can still look at the result. With `frames` also video_<seed>_frames.zip: every frame as
+it left the VAE, lossless as frame_0000.png ... (for keying and sprites, where H.264 would smear the edges).
 
 Memory: a job must stay under MAX_GB (see memory_gb). A default size shrinks to fit the length, a predicted
 length is capped to fit the size, an explicit size and length that do not fit fail before any work.
@@ -196,6 +197,56 @@ def preview(video_path, count=4, size=480):
     return out.name
 
 
+class FrameZip:
+    """Passes the decoded chunks on to the encoder and writes every frame as a PNG into a zip on the way.
+
+    PNG encoding runs in threads; at most PENDING frames wait at a time, so the RAM they take stays small."""
+
+    PENDING = 16
+
+    def __init__(self, path):
+        import zipfile
+        from concurrent.futures import ThreadPoolExecutor
+
+        self.zip = zipfile.ZipFile(path, "w", zipfile.ZIP_STORED)   # PNGs are compressed already
+        self.pool = ThreadPoolExecutor(8)
+        self.pending = []
+        self.count = 0
+
+    @staticmethod
+    def _png(frame):
+        import io
+
+        from PIL import Image
+
+        buf = io.BytesIO()
+        Image.fromarray(frame).save(buf, "PNG", compress_level=6)
+        return buf.getvalue()
+
+    def _flush(self, keep):
+        while len(self.pending) > keep:
+            name, future = self.pending.pop(0)
+            self.zip.writestr(name, future.result())
+
+    def wrap(self, chunks):
+        import torch
+
+        for chunk in chunks:
+            frames = (chunk.float().clamp(0, 1) * 255).round().to(torch.uint8).cpu().numpy()
+            for frame in frames:
+                self.pending.append((f"frame_{self.count:04d}.png", self.pool.submit(self._png, frame)))
+                self.count += 1
+                self._flush(self.PENDING)
+            yield chunk
+
+    def close(self):
+        try:
+            self._flush(0)
+        finally:
+            self.pool.shutdown()
+            self.zip.close()
+
+
 def run(pipes, params, job_dir):
     import torch
     from ltx_core.components.guiders import MultiModalGuiderParams
@@ -267,9 +318,19 @@ def run(pipes, params, job_dir):
         with torch.inference_mode():
             result = generate(seed)
             path = job_dir / "out" / f"video_{seed}.mp4"
-            encode_video(video=result.video, fps=fps, audio=result.audio, output_path=str(path),
-                         video_chunks_number=get_video_chunks_number(result.num_frames, result.tiling_config))
+            video = result.video
+            if params.get("frames"):
+                frame_zip = FrameZip(job_dir / "out" / f"video_{seed}_frames.zip")
+                video = frame_zip.wrap(iter([video]) if isinstance(video, torch.Tensor) else video)
+            try:
+                encode_video(video=video, fps=fps, audio=result.audio, output_path=str(path),
+                             video_chunks_number=get_video_chunks_number(result.num_frames, result.tiling_config))
+            finally:
+                if params.get("frames"):
+                    frame_zip.close()
         names += [path.name, preview(path)]
+        if params.get("frames"):
+            names.append(f"video_{seed}_frames.zip")
         log(f"{path.name}: {result.num_frames} frames ({result.num_frames / fps:.1f}s) in {time.time() - t:.0f}s, "
             f"peak {torch.cuda.max_memory_reserved() / 1024**3:.1f} GB")
     return names
