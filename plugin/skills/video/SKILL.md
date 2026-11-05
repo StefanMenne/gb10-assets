@@ -1,6 +1,6 @@
 ---
 name: video
-description: Create videos with sound on the gb10-assets server with LTX-2.5 (generate_video, audio_to_video, retake_video): from text, from a start image, between keyframes, for a given voice or song, or by regenerating a segment of a video. Use when the user wants a video clip, an animated scene, a cutscene, a trailer shot, a talking or singing person, or wants to fix part of a video.
+description: "Create videos with sound on the gb10-assets server with LTX-2.5 (generate_video, audio_to_video, retake_video): from text, from a start image, between keyframes, for a given voice or song, or by regenerating a segment of a video. Use when the user wants a video clip, an animated scene, a cutscene, a trailer shot, a talking or singing person, or wants to fix part of a video."
 ---
 
 # Video with sound (LTX-2.5)

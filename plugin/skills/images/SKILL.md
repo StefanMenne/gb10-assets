@@ -1,6 +1,6 @@
 ---
 name: images
-description: Create and edit images for games on the gb10-assets server (generate_image with FLUX.2 klein, edit_image with Qwen-Image-Edit, remove_background with BiRefNet): backgrounds and scenes, characters, items, sprites, icons, UI elements, textures, concept art, variants and edits of existing pictures. Use when the user wants any picture or several variants, a changed or combined image, a cutout with transparent background, or a start image for video or 3D.
+description: "Create and edit images for games on the gb10-assets server (generate_image with FLUX.2 klein, edit_image with Qwen-Image-Edit, remove_background with BiRefNet): backgrounds and scenes, characters, items, sprites, icons, UI elements, textures, concept art, variants and edits of existing pictures. Use when the user wants any picture or several variants, a changed or combined image, a cutout with transparent background, or a start image for video or 3D."
 ---
 
 # Images for games
