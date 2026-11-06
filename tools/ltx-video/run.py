@@ -288,14 +288,14 @@ def run(pipes, params, job_dir):
     duration = params.get("duration_s")
 
     if params.get("video"):
-        video = conform_video(inp / params["video"], job_dir / "conformed.mp4")
-        meta = get_videostream_metadata(str(video))
+        source = conform_video(inp / params["video"], job_dir / "conformed.mp4")
+        meta = get_videostream_metadata(str(source))
         fps = round(meta.fps)
         check_memory(meta.width, meta.height, meta.frames, fps)
         regenerate = params.get("regenerate", "both")
 
         def generate(seed):
-            return pipes["retake"](video_path=str(video), prompt=prompt, start_time=params["start_s"],
+            return pipes["retake"](video_path=str(source), prompt=prompt, start_time=params["start_s"],
                                    end_time=params["end_s"], seed=seed, enhance_prompt=enhance,
                                    regenerate_video=regenerate != "audio", regenerate_audio=regenerate != "video")
     else:
