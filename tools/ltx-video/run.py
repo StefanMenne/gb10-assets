@@ -149,6 +149,33 @@ def audio_seconds(path):
         return container.duration / av.time_base if container.duration else MAX_FRAMES / 24
 
 
+def stereo_audio(src, dst):
+    """Copy of src with two channels, which the audio VAE needs (its first conv takes 2 channels): a mono track
+    is duplicated into both channels at the same level, more than two channels keep the first two. Returns src
+    itself if it already has two."""
+    import av
+    import numpy as np
+
+    with av.open(str(src)) as container:
+        stream = container.streams.audio[0]
+        if stream.channels == 2:
+            return src
+        rate, channels = stream.rate, stream.channels
+        wave = np.concatenate([f.to_ndarray().reshape(-1, channels) if f.format.is_packed
+                               else f.to_ndarray().T for f in container.decode(stream)])
+    wave = wave.astype(np.float32) / (np.iinfo(wave.dtype).max + 1) if wave.dtype.kind == "i" else wave
+    wave = np.repeat(wave, 2, axis=1) if channels == 1 else wave[:, :2]
+    with av.open(str(dst), "w") as container:
+        out = container.add_stream("pcm_f32le", rate=rate, layout="stereo")
+        frame = av.AudioFrame.from_ndarray(np.ascontiguousarray(wave.astype(np.float32)).reshape(1, -1),
+                                           format="flt", layout="stereo")
+        frame.sample_rate = rate
+        for packet in [*out.encode(frame), *out.encode(None)]:
+            container.mux(packet)
+    log(f"{src.name}: {channels} audio channel(s) -> stereo")
+    return dst
+
+
 def conform_video(src, dst):
     """Copy of src that RetakePipeline accepts: 8k+1 frames (at most MAX_FRAMES), sides cropped to multiples of
     32. Returns src itself if it already fits."""
@@ -281,7 +308,8 @@ def run(pipes, params, job_dir):
             return w, h
 
         if params.get("audio"):
-            duration = min(duration or MAX_FRAMES / fps, audio_seconds(inp / params["audio"]))
+            audio = stereo_audio(inp / params["audio"], job_dir / "stereo.wav")
+            duration = min(duration or MAX_FRAMES / fps, audio_seconds(audio))
             width, height = fit(frames_for(duration, fps))
 
             def generate(seed):
@@ -290,7 +318,7 @@ def run(pipes, params, job_dir):
                     num_frames=None, frame_rate=fps,
                     num_inference_steps=len(DISTILLED_SIGMAS) - 1, video_guider_params=MultiModalGuiderParams(),
                     images=[ImageConditioningInput.at(p, 0, 1.0) for p in images],
-                    audio_path=str(inp / params["audio"]), audio_max_duration=duration,
+                    audio_path=str(audio), audio_max_duration=duration,
                     enhance_prompt=enhance, stage_1_sigmas=DISTILLED_SIGMAS)
         else:
             if len(images) > 1 or duration:
