@@ -4,6 +4,7 @@
     gb10-assets server [--host 0.0.0.0] [--port 8750] HTTP server on the GB10 system
     gb10-assets health                                server version and queue
     gb10-assets image "prompt" -o DIR [-n 3] [--seed 1] [-W 1024 -H 1024] [-i ref.png]
+    gb10-assets image-qwen "prompt" -o DIR [-n 3] [--seed 1] [-W 1328 -H 1328]
     gb10-assets edit "instruction" -i in.png [-i in2.png] -o DIR [-n 2] [--seed 1] [-W 1024 -H 768]
     gb10-assets voice "description" "text" -o DIR [-l de] [-n 4] [--seed 1]
     gb10-assets speak "text" ["text" ...] -r ref.wav [-t "transcript" | -T ref.txt] -o DIR [-l de]
@@ -79,6 +80,14 @@ def main(argv: list[str] | None = None) -> None:
     im.add_argument("-W", "--width", type=int, default=1024)
     im.add_argument("-H", "--height", type=int, default=1024)
     im.add_argument("-i", "--image", action="append", default=[], help="reference image (repeatable)")
+
+    iq = sub.add_parser("image-qwen", parents=[gen],
+                        help="text to image with legible text, photorealistic (Qwen-Image-2512)")
+    iq.add_argument("prompt")
+    iq.add_argument("-n", "--count", type=int, default=1)
+    iq.add_argument("--seed", type=int)
+    iq.add_argument("-W", "--width", type=int, default=1328)
+    iq.add_argument("-H", "--height", type=int, default=1328)
 
     ed = sub.add_parser("edit", parents=[gen], help="edit images with an instruction (Qwen-Image-Edit-2511)")
     ed.add_argument("prompt")
@@ -205,6 +214,9 @@ def main(argv: list[str] | None = None) -> None:
         elif a.cmd == "image":
             _submit_and_fetch(a, "flux2-klein", {"prompt": a.prompt, "count": a.count, "seed": a.seed,
                                                  "width": a.width, "height": a.height, "reference_images": a.image})
+        elif a.cmd == "image-qwen":
+            _submit_and_fetch(a, "qwen-image", {"prompt": a.prompt, "count": a.count, "seed": a.seed,
+                                                "width": a.width, "height": a.height})
         elif a.cmd == "edit":
             _submit_and_fetch(a, "qwen-image-edit", {"prompt": a.prompt, "images": a.image, "count": a.count,
                                                      "seed": a.seed, "width": a.width, "height": a.height})

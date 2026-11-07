@@ -91,6 +91,7 @@ textarea:focus, input:focus, select:focus { outline: 2px solid var(--accent-soft
     <form class="card" id="form" autocomplete="off">
       <div class="tabs" role="tablist">
         <button type="button" role="tab" id="tab-generate" aria-selected="true">Generate</button>
+        <button type="button" role="tab" id="tab-qwen" aria-selected="false">Qwen-Image</button>
         <button type="button" role="tab" id="tab-edit" aria-selected="false">Edit</button>
       </div>
       <div class="hint" id="mode-hint"></div>
@@ -99,7 +100,7 @@ textarea:focus, input:focus, select:focus { outline: 2px solid var(--accent-soft
         <textarea id="prompt" required maxlength="4000"></textarea>
       </label>
 
-      <div class="f" style="display:grid;gap:6px">
+      <div class="f" style="display:grid;gap:6px" id="inputs-box">
         <label class="f" for="file" id="inputs-label"></label>
         <div id="drop" tabindex="0">Drop images here, paste, or click to choose</div>
         <input type="file" id="file" accept="image/*" multiple hidden>
@@ -140,6 +141,9 @@ const MODES = {
   generate: {tool: "flux2-klein", files: "reference_images", min: 0, max: 4, submit: "Generate",
     label: "Reference images (optional, up to 4)",
     hint: "FLUX.2 [klein] 4B: text to image. With reference images it restyles or recolors them and keeps the pose."},
+  qwen: {tool: "qwen-image", files: null, min: 0, max: 0, submit: "Generate", label: "", size: "1328x1328",
+    presets: [[1328, 1328], [1664, 928], [928, 1664], [1472, 1104], [1104, 1472], [1584, 1056], [1056, 1584]],
+    hint: "Qwen-Image-2512: text to image with legible text (put it in quotes) and photorealism. Larger than FLUX.2 [klein], loading takes longer."},
   edit: {tool: "qwen-image-edit", files: "images", min: 1, max: 3, submit: "Edit",
     label: "Images to edit (1 to 3)",
     hint: "Qwen-Image-Edit: change objects, text, style or background, or combine up to three images (\"the person from image 1 holds the cup from image 2\")."},
@@ -192,19 +196,21 @@ async function errorText(r) {
 function setMode(m) {
   mode = m;
   const cfg = MODES[m];
-  $("tab-generate").setAttribute("aria-selected", m === "generate");
-  $("tab-edit").setAttribute("aria-selected", m === "edit");
+  for (const k in MODES) $(`tab-${k}`).setAttribute("aria-selected", m === k);
+  $("inputs-box").hidden = !cfg.max;
   $("mode-hint").textContent = cfg.hint;
   $("inputs-label").textContent = cfg.label;
-  $("prompt").placeholder = m === "generate"
+  $("prompt").placeholder = m === "qwen"
+    ? "A hand-painted wooden sign on a cafe door reading \"Fresh Coffee\", morning light, photo"
+    : m === "generate"
     ? "A cozy wooden cabin in a snowy forest at dusk, warm light in the windows, painterly concept art"
     : "Replace the background with a sunny beach";
   if (!job) $("submit").textContent = cfg.submit;
   const keep = $("preset").value;
   $("preset").innerHTML = (m === "edit" ? `<option value="auto">Auto (first image's aspect ratio, ~1 MP)</option>` : "")
-    + PRESETS.map(([w, h]) => `<option value="${w}x${h}">${w} × ${h}${w === h ? " square" : w > h ? " landscape" : " portrait"}</option>`).join("")
+    + (cfg.presets || PRESETS).map(([w, h]) => `<option value="${w}x${h}">${w} × ${h}${w === h ? " square" : w > h ? " landscape" : " portrait"}</option>`).join("")
     + `<option value="custom">Custom…</option>`;
-  $("preset").value = [...$("preset").options].some(o => o.value === keep) ? keep : m === "edit" ? "auto" : "1024x1024";
+  $("preset").value = [...$("preset").options].some(o => o.value === keep) ? keep : m === "edit" ? "auto" : cfg.size || "1024x1024";
   syncSize();
   renderInputs();
   saveSettings();
@@ -227,6 +233,7 @@ function saveSettings() {
 // read at once: a File is only a reference, and the upload fails if the file changes or moves before it
 async function addFiles(files) {
   const max = MODES[mode].max;
+  if (!max) return;
   showError("");
   for (const f of [...files]) {
     if (!f.type.startsWith("image/")) { showError(`${f.name} is not an image.`); continue; }
@@ -286,8 +293,9 @@ $("form").onsubmit = async e => {
   const prompt = $("prompt").value.trim();
   if (!prompt) return showError("Enter a prompt.");
   if (inputs.length < cfg.min) return showError("Add at least one image to edit.");
-  if (inputs.length > cfg.max) return showError(`At most ${cfg.max} images in this mode.`);
-  const params = {prompt, count: Number($("count").value) || 1, [cfg.files]: inputs.map(i => i.name)};
+  if (cfg.files && inputs.length > cfg.max) return showError(`At most ${cfg.max} images in this mode.`);
+  const params = {prompt, count: Number($("count").value) || 1};
+  if (cfg.files) params[cfg.files] = inputs.map(i => i.name);
   if ($("seed").value !== "") params.seed = Number($("seed").value);
   if ($("preset").value !== "auto") {
     snap($("width")); snap($("height"));
@@ -295,7 +303,7 @@ $("form").onsubmit = async e => {
   }
   const body = new FormData();
   body.append("request", JSON.stringify({tool: cfg.tool, params}));
-  for (const inp of inputs) body.append("files", inp.blob, inp.name);
+  if (cfg.files) for (const inp of inputs) body.append("files", inp.blob, inp.name);
   saveSettings();
 
   const snapshot = {mode, prompt, preset: $("preset").value, w: params.width, h: params.height};
@@ -377,7 +385,7 @@ function renderResults() {
   }
   $("results").innerHTML = results.map((r, i) => `<div class="res">
     <img src="${r.url}" alt="" data-zoom="${i}">
-    <div class="meta"><b>${r.mode === "edit" ? "Edit" : "Generate"}</b>${r.seed ? ` · seed ${r.seed}` : ""}${r.width ? ` · ${r.width} × ${r.height}` : ""} · ${dur(r.seconds)}
+    <div class="meta"><b>${({generate: "Generate", qwen: "Qwen-Image", edit: "Edit"})[r.mode]}</b>${r.seed ? ` · seed ${r.seed}` : ""}${r.width ? ` · ${r.width} × ${r.height}` : ""} · ${dur(r.seconds)}
       <div class="prompt" title="${esc(r.prompt)}">${esc(r.prompt)}</div></div>
     <div class="actions">
       <a class="btn" href="${r.url}" download="${esc(fileName(r))}">Download</a>
@@ -429,6 +437,7 @@ window.addEventListener("beforeunload", e => { if (results.length || job) e.prev
 
 // ------------------------------------------------------------------------------------------- start
 $("tab-generate").onclick = () => setMode("generate");
+$("tab-qwen").onclick = () => setMode("qwen");
 $("tab-edit").onclick = () => setMode("edit");
 $("preset").onchange = () => { syncSize(); saveSettings(); };
 for (const id of ["width", "height"]) $(id).onchange = () => { snap($(id)); saveSettings(); };
@@ -438,7 +447,7 @@ $("prompt").addEventListener("keydown", e => { if (e.key === "Enter" && (e.ctrlK
 const saved = load(SETTINGS_KEY, {});
 $("prompt").value = saved.prompt || "";
 $("count").value = saved.count || 1;
-setMode(saved.mode === "edit" ? "edit" : "generate");
+setMode(saved.mode in MODES ? saved.mode : "generate");
 if (saved.preset && [...$("preset").options].some(o => o.value === saved.preset)) $("preset").value = saved.preset;
 if (saved.preset === "custom") { $("width").value = saved.width || 1024; $("height").value = saved.height || 1024; }
 syncSize();

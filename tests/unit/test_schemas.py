@@ -10,10 +10,11 @@ from gb10_assets.shared.schemas import (
     BlenderScript,
     EditImage,
     GenerateImage,
+    GenerateImageQwen,
     GenerateVideo,
     ImageTo3D,
-    RemoveBackground,
     JobState,
+    RemoveBackground,
     Speak,
     SpeakMultilingual,
     check_file_name,
@@ -49,6 +50,14 @@ def test_edit_defaults_and_input_files():
     assert (req.width, req.height, req.seed, req.count) == (None, None, None, 1)
     assert req.input_files() == ["a.png", "b.png"]
     assert REQUESTS["qwen-image-edit"] is EditImage
+
+
+def test_qwen_image_defaults_and_no_inputs():
+    req = GenerateImageQwen(prompt="a sign reading \"OPEN\"")
+    assert (req.width, req.height, req.count, req.input_files()) == (1328, 1328, 1, [])
+    assert REQUESTS["qwen-image"] is GenerateImageQwen
+    with pytest.raises(ValueError):
+        GenerateImageQwen.model_validate({"prompt": "x", "reference_images": ["a.png"]})
 
 
 @pytest.mark.parametrize("params", [

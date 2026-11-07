@@ -25,6 +25,7 @@ The server's [dashboard](#dashboard) shows GPU, memory and tool state and an eve
 | Tool | Model | Task | License | Weights | Client |
 |---|---|---|---|---|---|
 | `flux2-klein` | [FLUX.2 \[klein\] 4B](https://huggingface.co/black-forest-labs/FLUX.2-klein-4B) | text to image, optional reference images | Apache-2.0 | ~16 GB | `gb10-assets image` |
+| `qwen-image` | [Qwen-Image-2512](https://huggingface.co/Qwen/Qwen-Image-2512) with the 4-step [Lightning LoRA](https://huggingface.co/lightx2v/Qwen-Image-2512-Lightning) | text to image with legible text, photorealism | Apache-2.0 | ~59 GB | `gb10-assets image-qwen` |
 | `qwen-image-edit` | [Qwen-Image-Edit-2511](https://huggingface.co/Qwen/Qwen-Image-Edit-2511) with the 4-step [Lightning LoRA](https://huggingface.co/lightx2v/Qwen-Image-Edit-2511-Lightning) | edit 1-3 images with an instruction | Apache-2.0 | ~59 GB | `gb10-assets edit` |
 | `qwen-tts` | [Qwen3-TTS 1.7B VoiceDesign](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign) and [Base](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-Base) | speech with a voice designed from a description or cloned from a recording; de, en, es, fr, it, ja, ko, pt, ru, zh | Apache-2.0 | ~9 GB | `gb10-assets voice`, `speak` |
 | `confucius-tts` | [Confucius4-TTS](https://huggingface.co/netease-youdao/Confucius4-TTS) | cross-lingual voice cloning (e.g. a German voice speaking Thai); 14 languages incl. th, vi, id, ms | Apache-2.0 | ~6 GB | `gb10-assets speak-multilingual` |
@@ -105,7 +106,7 @@ curl http://<gb10-host>:8750/health
 The dashboard needs no token to view; everyone who can reach the port can open it.
 
 **Image studio:** `http://<gb10-host>:8750/create` (linked in the dashboard header) generates images with
-flux2-klein or edits them with qwen-image-edit in the browser: prompt, size, variants, seed, input images by
+flux2-klein or qwen-image or edits them with qwen-image-edit in the browser: prompt, size, variants, seed, input images by
 drag and drop or paste, a download button per result, and "Edit this" to edit a result further. It submits normal
 jobs through the API and asks for `GB10_ASSETS_TOKEN` once. The results stay in the browser tab; the server
 deletes each job as soon as the page has its images.

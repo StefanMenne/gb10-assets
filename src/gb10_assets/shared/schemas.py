@@ -74,6 +74,18 @@ class GenerateImage(JobRequest):
     reference_images: list[FileName] = Field(default_factory=list, max_length=4)
 
 
+class GenerateImageQwen(JobRequest):
+    """Text to image with Qwen-Image-2512 and the 4-step Lightning LoRA: legible text, photorealism."""
+
+    tool: ClassVar[str] = "qwen-image"
+
+    prompt: str = Field(min_length=1, max_length=4000)
+    width: Side = 1328
+    height: Side = 1328
+    seed: Seed | None = None
+    count: Count = 1
+
+
 class EditImage(JobRequest):
     """Edit one to three images with a text instruction (Qwen-Image-Edit-2511 with the 4-step Lightning LoRA)."""
 
@@ -297,7 +309,7 @@ class BlenderScript(JobRequest):
 
 
 REQUESTS: dict[str, type[JobRequest]] = {
-    m.tool: m for m in (GenerateImage, EditImage, Speak, SpeakMultilingual, GenerateVideo, ImageTo3D,
+    m.tool: m for m in (GenerateImage, GenerateImageQwen, EditImage, Speak, SpeakMultilingual, GenerateVideo, ImageTo3D,
                         RemoveBackground, BlenderScript)}
 
 
