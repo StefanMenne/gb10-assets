@@ -139,7 +139,8 @@ def build(adapter: Adapter | None = None) -> MCPServer:
         images: Annotated[list[str], Field(description="Local paths of the input images (1-3)")],
         seed: Annotated[int | None, Field(description="Start seed; variants use seed..seed+count-1")] = None,
         count: Annotated[int, Field(description="Number of variants in this job (1-16); a sheet.png is added if > 1")] = 1,
-        width: Annotated[int | None, Field(description="Multiple of 16; default keeps the first image's aspect ratio")] = None,
+        width: Annotated[int | None, Field(description=(
+            "Multiple of 16; default: the first image's aspect ratio at about 1 megapixel, whatever its size"))] = None,
         height: Annotated[int | None, Field(description="Multiple of 16; default keeps the first image's aspect ratio")] = None,
     ) -> dict:
         """Edit images with a text instruction using Qwen-Image-Edit-2511: change objects, text, style or

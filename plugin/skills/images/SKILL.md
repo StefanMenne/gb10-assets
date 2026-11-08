@@ -41,7 +41,8 @@ what the asset is used for; there is no default view.
 | concept art, key art, cover | free composition, as for an illustration | as needed |
 
 `edit_image`: one clear instruction and name the inputs by number ("the cat from image 1 sits on the sofa from
-image 2"); unmentioned parts stay as they are. It keeps the first image's aspect ratio by default.
+image 2"); unmentioned parts stay as they are. Without width and height the output keeps the first image's aspect ratio at about one megapixel, whatever the
+size of the input (a 768x1024 input gives 896x1184); scale the result down if the input size is needed.
 
 Width and height are multiples of 16 (256-2048). Keep the `seed` of a good variant to vary the prompt alone.
 
