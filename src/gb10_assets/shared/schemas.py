@@ -261,6 +261,31 @@ class RemoveBackground(JobRequest):
     mask: bool = Field(False, description="Also return the mask (white = object, grayscale at soft edges)")
 
 
+Query = tuple[Annotated[int, Field(ge=0)], Annotated[float, Field(ge=0)], Annotated[float, Field(ge=0)]]
+
+
+class TrackPoints(JobRequest):
+    """TAPNet BootsTAPIR: tracks points through a sequence of frames (forwards and backwards from the frame each
+    point is given in). Outputs tracks.json (per point and frame x, y and visibility 0-1, in pixels of the
+    frames) and tracks.png (the tracks drawn on a few frames)."""
+
+    tool: ClassVar[str] = "tapnet"
+    input_fields: ClassVar[tuple[str, ...]] = ("frames",)
+
+    frames: list[FileName] = Field(min_length=2, max_length=600, description="Frames of one video, in order, "
+                                                                            "all of the same size")
+    queries: list[Query] = Field(min_length=1, max_length=4000, description=(
+        "[frame index, x, y] per point; pixels with (0, 0) the top-left corner of the image"))
+    resolution: Literal[256, 512] = Field(512, description="The model's input size: 512 more precise, 256 faster")
+
+    @model_validator(mode="after")
+    def _queries_in_frames(self):
+        bad = [q for q in self.queries if q[0] >= len(self.frames)]
+        if bad:
+            raise ValueError(f"query {list(bad[0])} refers to frame {bad[0][0]}, there are {len(self.frames)} frames")
+        return self
+
+
 # tools/blender/scripts/<name>.py (tests check that both agree); usage and options in each script's docstring
 BLENDER_SCRIPTS = {
     "glb_post": "in.glb out.glb [--height M] [--emission 0.5] [--tex 1024]: stand a generated model on the "
@@ -310,7 +335,7 @@ class BlenderScript(JobRequest):
 
 REQUESTS: dict[str, type[JobRequest]] = {
     m.tool: m for m in (GenerateImage, GenerateImageQwen, EditImage, Speak, SpeakMultilingual, GenerateVideo, ImageTo3D,
-                        RemoveBackground, BlenderScript)}
+                        RemoveBackground, TrackPoints, BlenderScript)}
 
 
 class SubmitJob(BaseModel):

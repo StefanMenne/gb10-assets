@@ -56,6 +56,21 @@ def free_path(target: Path) -> Path:
     return path
 
 
+def track_params(frames: list[str], queries: str, resolution: int = 512) -> dict:
+    """Parameters of a tapnet job: frames are PNG files or directories of them (taken in name order), queries a
+    JSON file with a list of [frame, x, y] or an object with such a list under "queries" (sprites.py queries)."""
+    paths: list[str] = []
+    for raw in frames:
+        p = Path(raw).expanduser()
+        paths += [str(f) for f in sorted(p.glob("*.png"))] if p.is_dir() else [str(p)]
+    try:
+        data = json.loads(Path(queries).expanduser().read_text())
+    except (OSError, ValueError) as e:
+        raise ApiError(f"cannot read the queries {queries}: {e}") from None
+    return {"frames": paths, "queries": data["queries"] if isinstance(data, dict) else data,
+            "resolution": resolution}
+
+
 class Client:
     def __init__(self, url: str | None = None, token: str | None = None, *,
                  transport: httpx.BaseTransport | None = None, timeout: float = 60):

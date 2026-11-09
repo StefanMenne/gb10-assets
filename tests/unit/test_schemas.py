@@ -17,6 +17,7 @@ from gb10_assets.shared.schemas import (
     RemoveBackground,
     Speak,
     SpeakMultilingual,
+    TrackPoints,
     check_file_name,
     ltx_frames,
     ltx_max_seconds,
@@ -205,6 +206,24 @@ def test_remove_background():
 def test_remove_background_invalid(params):
     with pytest.raises(ValidationError):
         RemoveBackground.model_validate(params)
+
+
+def test_track_points():
+    r = TrackPoints(frames=["f0.png", "f1.png"], queries=[[0, 10.5, 20], [1, 0, 0]])
+    assert r.input_files() == ["f0.png", "f1.png"] and r.resolution == 512 and REQUESTS["tapnet"] is TrackPoints
+
+
+@pytest.mark.parametrize("params", [
+    {"frames": ["f0.png"], "queries": [[0, 1, 1]]},                    # one frame
+    {"frames": ["f0.png", "f1.png"], "queries": []},
+    {"frames": ["f0.png", "f1.png"], "queries": [[2, 1, 1]]},          # no frame 2
+    {"frames": ["f0.png", "f1.png"], "queries": [[0, -1, 1]]},
+    {"frames": ["f0.png", "f1.png"], "queries": [[0, 1]]},
+    {"frames": ["f0.png", "f1.png"], "queries": [[0, 1, 1]], "resolution": 1024},
+])
+def test_track_points_invalid(params):
+    with pytest.raises(ValidationError):
+        TrackPoints.model_validate(params)
 
 
 def test_blender_script():

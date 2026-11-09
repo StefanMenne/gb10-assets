@@ -13,7 +13,7 @@ from pydantic import Field
 
 from .. import __version__
 from ..shared.schemas import BLENDER_SCRIPTS, JobInfo, JobState
-from .http_client import ApiError, Client, VersionMismatch
+from .http_client import ApiError, Client, VersionMismatch, track_params
 
 MAX_WAIT_S = 600
 LOG_LINES = 60  # blender: end of the job log returned with the files (the script's print output)
@@ -31,7 +31,9 @@ speak_multilingual clones a voice into languages such as Thai, even from a refer
 Video (with sound): generate_video from text and keyframe images, audio_to_video for a given soundtrack,
 retake_video to regenerate a time range of a video. A video job takes minutes; look at the .jpg frames.
 3D: image_to_3d turns one image of an object into a textured GLB (several minutes); look at the .png render.
-Blender: blender runs bundled scripts or own bpy code on files (rigging, animation, texture fixes, renders)."""
+Blender: blender runs bundled scripts or own bpy code on files (rigging, animation, texture fixes, renders).
+Tracking: track_points follows points through video frames (root motion of walk cycles, see the
+sprite-animation skill)."""
 
 BLENDER_DESCRIPTION = """Run a Python script in Blender 5.2 (bpy, headless, GPU: Cycles on CUDA, EEVEE) on the server.
 Give either `script` (bundled, below) or `code` (own Python), plus `args` like a command line (sys.argv[1:]) and
@@ -295,6 +297,22 @@ def build(adapter: Adapter | None = None) -> MCPServer:
         alpha at hair, fur and motion blur), at the image's full resolution. Outputs <stem>_cutout.png per image
         with a transparent background, with mask=True also <stem>_mask.png. About a second per image after a few seconds of loading. Returns a job_id."""
         return submitted(adapter.client.submit("birefnet", {"images": images, "mask": mask}))
+
+    @mcp.tool()
+    def track_points(
+        frames: Annotated[list[str], Field(description=(
+            "Local PNG frames of one video in order, or a directory of them (taken in name order); 2-600 frames "
+            "of the same size"))],
+        queries: Annotated[str, Field(description=(
+            "Local JSON file: a list of [frame index, x, y] or {\"queries\": [...]} as written by sprites.py "
+            "queries; pixels with (0, 0) the top-left corner"))],
+        resolution: Annotated[int, Field(description="Model input size: 512 (precise) or 256 (faster)")] = 512,
+    ) -> dict:
+        """Track points through video frames with TAPNet BootsTAPIR: each point is followed forwards and
+        backwards from the frame it is given in, also through short occlusions. Outputs tracks.json (per point
+        and frame x, y and visibility 0-1, in pixels of the frames) and tracks.png (the tracks drawn on a few
+        frames; look at it). A few seconds for a short clip. Returns a job_id."""
+        return submitted(adapter.client.submit("tapnet", track_params(frames, queries, resolution)))
 
     @mcp.tool(description=BLENDER_DESCRIPTION.format(
         scripts="\n".join(f"- {name} {usage}" for name, usage in BLENDER_SCRIPTS.items())))

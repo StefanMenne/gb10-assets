@@ -59,4 +59,5 @@ Memory limits the length per size (measured on the GB10; 1536x1024 for 10 s runs
 - a voice for `audio_to_video`: `design_voice` and `speak` (see the voice-lines skill)
 - a talking 3D figure instead of a filmed look: `talk_video` in `blender` (see the game-figure skill)
 - frames to process further (keying, sprites): `frames=True` adds `video_<seed>_frames.zip` with every frame
-  lossless as PNG; never take frames from the MP4. Animated 2D sprites: see the sprite-animation skill
+  lossless as PNG; never take frames from the MP4. Animated 2D sprites, walk cycles with root motion
+  (`track_points`): see the sprite-animation skill

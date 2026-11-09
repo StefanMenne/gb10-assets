@@ -32,6 +32,7 @@ The server's [dashboard](#dashboard) shows GPU, memory and tool state and an eve
 | `ltx-video` | [LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5) 22B distilled, NVFP4 | video with sound from text or keyframe images, video for an audio track, retake of a time range | [LTX-2.x Community](https://github.com/Lightricks/LTX-2/blob/main/LICENSE-2_x)¹ | ~50 GB | `gb10-assets video`, `audio-to-video`, `retake` |
 | `pixal3d` | [Pixal3D](https://huggingface.co/Comfy-Org/Pixal3D) (on TRELLIS.2), run by [ComfyUI](https://github.com/Comfy-Org/ComfyUI) | one image to a textured 3D model: GLB with PBR maps (base color, metallic, roughness, normal, occlusion) | MIT² | ~9 GB | `gb10-assets 3d` |
 | `birefnet` | [BiRefNet-matting](https://huggingface.co/ZhengPeng7/BiRefNet-matting), run by [ComfyUI](https://github.com/Comfy-Org/ComfyUI) | remove the background: PNG with soft alpha (hair, fur, motion blur) at the image's full resolution, optionally the mask | MIT² | ~0.9 GB | `gb10-assets cutout` |
+| `tapnet` | [TAPNet BootsTAPIR](https://github.com/google-deepmind/tapnet) (Google DeepMind) | track points through video frames, also through short occlusions: root motion of walk cycles (sprite-animation skill) | Apache-2.0 | ~0.2 GB | `gb10-assets track` |
 | `blender` | [Blender](https://www.blender.org) 5.2 as a Python module (bpy), Cycles and EEVEE on the GPU | Python scripts on 3D models: bundled ones for rigging and animating figures, texture and eye fixes, previews and videos of talking figures, or own code | GPL-3.0³ | none (1.9 GB installed) | `gb10-assets blender` |
 
 ¹ Not an open-source license: free, also commercially, for companies under $10M annual revenue; the model is
@@ -183,6 +184,7 @@ gb10-assets retake clip.mp4 "the fox jumps over a log" --start 2 --end 4 -o ~/gb
 gb10-assets 3d chair.png -o ~/gb10-3d                                                          # image to GLB
 gb10-assets 3d chair.png --resolution 1024 --faces 50000 --texture 2048 -o ~/gb10-3d          # faster, game-ready
 gb10-assets cutout fox.png knight.jpg -o ~/gb10-images                                          # transparent background
+gb10-assets track frames/ -q queries.json -o ~/gb10-track                                       # point tracks (sprites.py queries)
 gb10-assets blender fox.glb --script rig_hop -o ~/gb10-3d -- fox.glb fox_rigged.glb               # animated GLB
 gb10-assets blender fox_rigged.glb --script preview -o ~/gb10-3d -- fox_rigged.glb fox.png --action Walk
 gb10-assets blender model.glb --code measure.py -o ~/gb10-3d -- model.glb                       # own bpy script

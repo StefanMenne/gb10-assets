@@ -36,6 +36,7 @@ TOOLS: dict[str, ToolSpec] = {t.name: t for t in (
     ToolSpec("ltx-video", min_free_gb=102),  # jobs are limited to ~98 GB peak (MAX_GB in tools/ltx-video/run.py)
     ToolSpec("pixal3d", min_free_gb=24),  # measured peak ~14 GB (int8 DiT, resolution 1536, 4096 textures)
     ToolSpec("birefnet", min_free_gb=8),  # measured peak ~4 GB (3 images, one of them 4096x4096)
+    ToolSpec("tapnet", min_free_gb=8),  # measured peak ~4.4 GB (48 frames 1024x768, 512x512 model input)
     ToolSpec("blender", min_free_gb=8),  # bpy itself ~1 GB; scripts on big meshes or renders need more
 )}
 
