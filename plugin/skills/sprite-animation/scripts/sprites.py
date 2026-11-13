@@ -8,16 +8,19 @@ Run with `uv run sprites.py COMMAND ...` (uv installs the dependencies above). I
 is green (00FF00) or magenta (FF00FF).
 
     flatten CUTOUT.png OUT.png --color 00FF00     put a cutout (remove_background) on an exactly flat chroma color
-    place CUTOUT.png OUT.png --size 1536x640 --at left   cutout on a wide chroma canvas, room to walk across
+    place CUTOUT.png OUT.png --size 1536x640 --at left   cutout on a chroma canvas at a given height and feet line
+    shift IN.png OUT.png [--mirror] [--dx 0 --dy 0] [--extend-bottom 64]   lossless mirror / shift / margin
     unpack FRAMES.zip DIR [--range 12-35 --step 2]  extract frames of generate_video(frames=True)
     queries DIR --out QUERIES.json --color 00FF00 points on the feet and the body to track (track_points)
     root TRACKS.json --out ROOT.json              root motion from the tracks: ground speed, drift, foot sliding
+         [--foot --like CYCLE_ROOT.json]          per frame from the feet, for start, stop and standing phases
     stabilize DIR --root ROOT.json --out DIR      remove the travel of a figure walking across: walks in place
     sheet DIR... --out SHEET.png [--every 2]      numbered contact sheet of frames, to choose a cycle
     cycle DIR [--min 8 --max 48]                  loop lengths where the motion repeats best
     check-bg DIR --color 00FF00                   is the background even and separate in every frame?
     key DIR --color 00FF00 --out DIR [--ml DIR]   chroma key + despill, largest region, 1 px erosion
     scale DIR --out DIR (--height PX | --factor F) [--pad 4]   common crop, premultiplied resize
+          [--box x0,y0,x1,y1 --anchor x,y]        fixed box for all animations of a character, anchor in sprite px
     qc DIR --out QC.png [--scene SCENE.png]       frames on black, white, the other chroma color and the scene
     export --anim NAME=DIR [--anim ...] --out DIR [--fps 8] [--res res://sprites/] [--root NAME=ROOT.json --factor F]
                                                   sheets + SpriteFrames .tres (+ root motion per animation)
@@ -30,6 +33,11 @@ mode of all foot velocities (ground velocity g) and the body velocity b as the s
 figure moves over the ground by b - g per frame: walking in place b ~ 0 and the root motion is -g; walking across
 the frame with a static camera g ~ 0 (otherwise the feet slide) and it is b. Vectors are screen pixels of the
 video (x right, y down), so a diagonal or depth walk gives a diagonal vector.
+
+`root --foot` is for segments that are not a steady cycle (standing, starting, stopping): per frame the feet's
+movement relative to the body, against the walking direction of the cycle; the standing foot moves back with the
+ground fastest, so a high percentile of it is the ground speed of that frame (0 while standing). It is scaled so
+that over the cycle it matches the cycle's root motion.
 """
 import argparse
 import json
@@ -111,18 +119,40 @@ def cmd_place(a):
         sys.exit(f"{a.cutout} is empty")
     cut = cut[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
     W, H = map(int, a.size.lower().split("x"))
-    factor = a.height * H / cut.shape[0]
+    factor = (a.height if a.height > 1 else a.height * H) / cut.shape[0]
     w, h = round(cut.shape[1] * factor), round(cut.shape[0] * factor)
     if w > W:
         sys.exit(f"the figure is {w} px wide at --height {a.height}, wider than the canvas")
     fig = resize_premultiplied(cut, (w, h))
     x = int(np.clip(round({"left": W / 4, "center": W / 2, "right": 3 * W / 4}[a.at] - w / 2), 0, W - w))
-    y = H - h - round(a.bottom * H)
+    feet = a.feet if a.feet is not None else H - round(a.bottom if a.bottom >= 1 else a.bottom * H)
+    y = feet - h
+    if y < 0 or feet > H:
+        sys.exit(f"the figure ({h} px high, feet at y={feet}) does not fit into the canvas")
     canvas = np.zeros((H, W, 4), np.float32)
     canvas[y:y + h, x:x + w] = fig
     bg = np.broadcast_to(np.array(CHROMA[color], np.float32) / 255, (H, W, 3))
     save(composite(canvas, bg), a.out)
-    print(f"{a.out}: {W}x{H}, figure {w}x{h} at x={x}, y={y}")
+    print(f"{a.out}: {W}x{H}, figure {w}x{h} at x={x}, y={y}, feet at y={feet}")
+
+
+def cmd_shift(a):
+    img = np.asarray(Image.open(a.inp).convert("RGB"))
+    if a.mirror:
+        img = img[:, ::-1]
+    h, w = img.shape[:2]
+    fill = CHROMA[chroma(a.color)]
+    out = np.empty_like(img)
+    out[:] = fill
+    ys, xs = slice(max(0, -a.dy), min(h, h - a.dy)), slice(max(0, -a.dx), min(w, w - a.dx))
+    out[ys.start + a.dy:ys.stop + a.dy, xs.start + a.dx:xs.stop + a.dx] = img[ys, xs]
+    if a.extend_bottom:
+        ext = np.empty((a.extend_bottom, w, 3), np.uint8)
+        ext[:] = fill
+        out = np.concatenate([out, ext])
+    Path(a.out).parent.mkdir(parents=True, exist_ok=True)
+    Image.fromarray(out).save(a.out)
+    print(f"{a.out}: {out.shape[1]}x{out.shape[0]}")
 
 
 def cmd_unpack(a):
@@ -271,21 +301,34 @@ def resize_premultiplied(img, size):
 def cmd_scale(a):
     files = pngs(a.inputs)
     frames = [rgba(f) for f in files]
-    ys, xs = np.nonzero(np.max([fr[..., 3] for fr in frames], axis=0) > 0.01)
-    if not len(ys):
-        sys.exit("all frames are empty")
-    top, bottom, left, right = ys.min(), ys.max() + 1, xs.min(), xs.max() + 1
+    if a.box:
+        if not a.factor:
+            sys.exit("--box needs --factor (the same for all animations of the character)")
+        left, top, right, bottom = map(int, a.box.split(","))
+        pad = 0
+    else:
+        ys, xs = np.nonzero(np.max([fr[..., 3] for fr in frames], axis=0) > 0.01)
+        if not len(ys):
+            sys.exit("all frames are empty")
+        top, bottom, left, right = ys.min(), ys.max() + 1, xs.min(), xs.max() + 1
+        pad = a.pad
     factor = a.factor or a.height / (bottom - top)
     w, h = round((right - left) * factor), round((bottom - top) * factor)
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     for f, fr in zip(files, frames):
-        small = resize_premultiplied(fr[top:bottom, left:right], (w, h))
-        canvas = np.zeros((h + 2 * a.pad, w + 2 * a.pad, 4), np.float32)
-        canvas[a.pad:a.pad + h, a.pad:a.pad + w] = small
+        crop = np.zeros((bottom - top, right - left, 4), np.float32)  # the box may reach beyond the frame
+        H, W = fr.shape[:2]
+        y0, y1, x0, x1 = max(top, 0), min(bottom, H), max(left, 0), min(right, W)
+        crop[y0 - top:y1 - top, x0 - left:x1 - left] = fr[y0:y1, x0:x1]
+        canvas = np.zeros((h + 2 * pad, w + 2 * pad, 4), np.float32)
+        canvas[pad:pad + h, pad:pad + w] = resize_premultiplied(crop, (w, h))
         save(canvas, out / f.name)
-    print(f"{len(files)} frames {w + 2 * a.pad}x{h + 2 * a.pad} -> {out} (factor {factor:.5f}: "
+    print(f"{len(files)} frames {w + 2 * pad}x{h + 2 * pad} -> {out} (factor {factor:.5f}: "
           "pass --factor to scale the other animations of this character alike)")
+    if a.anchor:
+        ax, ay = map(float, a.anchor.split(","))
+        print(f"anchor ({(ax - left) * factor + pad:.1f}, {(ay - top) * factor + pad:.1f}) in sprite pixels")
 
 
 def cmd_qc(a):
@@ -430,13 +473,36 @@ def root_motion(tracks, kinds, height, tolerance=0.006):
             "walks_across": bool(np.linalg.norm(b) > np.linalg.norm(g))}
 
 
+def foot_root(tracks, kinds, query_frames, direction, near=6, pct=90):
+    """Ground speed per frame transition along `direction` (the walking direction): the feet's velocity relative
+    to the median body velocity, projected against the walking direction, its `pct` percentile, never negative.
+    Only tracks whose query lies at most `near` frames away (fresh tracks are more exact)."""
+    kinds, qf = np.asarray(kinds), np.asarray(query_frames)
+    d = np.asarray(direction, np.float64)
+    d = d / max(np.linalg.norm(d), 1e-9)
+    vis = tracks[..., 2] > 0.5
+    speed = np.zeros(tracks.shape[1] - 1)
+    for t in range(len(speed)):
+        ok = vis[:, t] & vis[:, t + 1] & (np.abs(qf - t) <= near)
+        v = tracks[:, t + 1, :2] - tracks[:, t, :2]
+        body, foot = ok & (kinds == "body"), ok & (kinds == "foot")
+        if foot.any():
+            vb = np.median(v[body], 0) if body.any() else np.zeros(2)
+            speed[t] = max(0.0, float(np.percentile(-((v[foot] - vb) @ d), pct)))
+    return speed
+
+
 def cmd_root(a):
     tr = json.loads(Path(a.tracks).read_text())
     q = json.loads(Path(a.queries).read_text())
     if len(q["kinds"]) != len(tr["tracks"]) or q["frames"] != tr["frames"]:
         sys.exit(f"{a.tracks} does not belong to {a.queries} (other points or frames)")
     height = q["figure_height"]
-    r = root_motion(np.array(tr["tracks"], np.float64), q["kinds"], height)
+    tracks = np.array(tr["tracks"], np.float64)
+    query_frames = [p[0] for p in q["queries"]]
+    if getattr(a, "foot", False):
+        return cmd_root_foot(a, tr, tracks, q, query_frames)
+    r = root_motion(tracks, q["kinds"], height)
     vx, vy = r["velocity"]
     speed = r["speed"]
     g, b = np.linalg.norm(r["ground_velocity"]), np.linalg.norm(r["body_velocity"])
@@ -452,7 +518,8 @@ def cmd_root(a):
                         "sliding feet")
     if r["walks_across"] and g > 0.15 * speed:
         warnings.append(f"the standing foot slides over the ground by {g / speed:.0%} of the walking speed")
-    r.update(frames=tr["frames"], figure_height=height, warnings=warnings)
+    r.update(frames=tr["frames"], figure_height=height, warnings=warnings,
+             foot_speed=float(foot_root(tracks, q["kinds"], query_frames, r["velocity"]).mean()))
     Path(a.out).write_text(json.dumps(r))
     kind = ("walks across the frame: run stabilize before cycle and scale" if r["walks_across"] else
             f"walks in place (body drifts {b / max(speed, 1e-6):.0%} of the walking speed)")
@@ -463,6 +530,29 @@ def cmd_root(a):
           f"{r['coverage']:.0%} of the frames")
     for w in warnings:
         print(f"WARNING: {w}")
+
+
+def cmd_root_foot(a, tr, tracks, q, query_frames):
+    if not a.like:
+        sys.exit("--foot needs --like CYCLE_ROOT.json: the root motion of this direction's walk cycle")
+    like = json.loads(Path(a.like).read_text())
+    if "foot_speed" not in like:
+        sys.exit(f"{a.like} has no foot_speed: run root on the cycle again with this version")
+    d = np.array(like["velocity"], np.float64)
+    d /= max(np.linalg.norm(d), 1e-9)
+    speed = foot_root(tracks, q["kinds"], query_frames, d)
+    speed = ndimage.median_filter(speed, size=5, mode="nearest") * like["speed"] / max(like["foot_speed"], 1e-6)
+    per_frame = speed[:, None] * d
+    body = np.asarray(q["kinds"]) == "body"
+    vel = tracks[body, 1:, :2] - tracks[body, :-1, :2]
+    r = {"velocity": per_frame.mean(0).tolist(), "body_velocity": np.median(vel, axis=(0, 1)).tolist(),
+         "ground_velocity": (-per_frame.mean(0)).tolist(), "per_frame": per_frame.round(3).tolist(),
+         "speed": float(speed.mean()), "walks_across": False, "frames": tr["frames"],
+         "figure_height": q["figure_height"], "warnings": [], "from_feet": True}
+    Path(a.out).write_text(json.dumps(r))
+    steps = " ".join(f"{s:.1f}" for s in speed)
+    print(f"{a.out}: root motion from the feet, mean {r['speed']:.2f} px per frame (cycle {like['speed']:.2f}), "
+          f"per frame: {steps}")
 
 
 def cmd_stabilize(a):
@@ -591,14 +681,21 @@ def main():
     s = sub.add_parser("flatten"); s.add_argument("cutout"); s.add_argument("out"); s.add_argument("--color", default="00FF00")
     s = sub.add_parser("place"); s.add_argument("cutout"); s.add_argument("out"); s.add_argument("--color", default="00FF00")
     s.add_argument("--size", default="1536x640", help="WxH of the video"); s.add_argument("--at", choices=("left", "center", "right"), default="left")
-    s.add_argument("--height", type=float, default=0.8, help="figure height as a fraction of the canvas height")
-    s.add_argument("--bottom", type=float, default=0.06, help="margin below the feet, fraction of the height")
+    s.add_argument("--height", type=float, default=0.8, help="figure height: fraction of the canvas height or px")
+    s.add_argument("--bottom", type=float, default=0.06, help="margin below the feet, fraction of the height or px")
+    s.add_argument("--feet", type=int, help="y of the feet line in px (instead of --bottom)")
+    s = sub.add_parser("shift"); s.add_argument("inp"); s.add_argument("out"); s.add_argument("--color", default="00FF00")
+    s.add_argument("--mirror", action="store_true", help="mirror horizontally (before shifting)")
+    s.add_argument("--dx", type=int, default=0); s.add_argument("--dy", type=int, default=0)
+    s.add_argument("--extend-bottom", type=int, default=0, help="add this many rows of the chroma color below")
     s = sub.add_parser("queries"); s.add_argument("inputs", nargs="+"); s.add_argument("--out", required=True)
     s.add_argument("--color", default="00FF00"); s.add_argument("--every", type=int, default=4, help="query every n-th frame")
     s.add_argument("--feet", type=int, default=6); s.add_argument("--body", type=int, default=3)
     s.add_argument("--foot", type=float, default=0.1, help="height of the foot band, fraction of the figure height")
     s = sub.add_parser("root"); s.add_argument("tracks"); s.add_argument("--queries", required=True)
     s.add_argument("--out", required=True); s.add_argument("--fps", type=float, default=24, help="of the video")
+    s.add_argument("--foot", action="store_true", help="per frame from the feet (start, stop, standing phases)")
+    s.add_argument("--like", help="ROOT.json of the walk cycle: direction and scale for --foot")
     s = sub.add_parser("stabilize"); s.add_argument("inputs", nargs="+"); s.add_argument("--root", required=True)
     s.add_argument("--out", required=True)
     s.add_argument("--max-scale", type=float, default=0.10, help="largest size change that is evened out")
@@ -615,7 +712,9 @@ def main():
     s = sub.add_parser("scale"); s.add_argument("inputs", nargs="+"); s.add_argument("--out", required=True)
     g = s.add_mutually_exclusive_group(required=True)
     g.add_argument("--height", type=int, help="height of the figure in pixels"); g.add_argument("--factor", type=float)
-    s.add_argument("--pad", type=int, default=4)
+    s.add_argument("--pad", type=int, default=4, help="not with --box")
+    s.add_argument("--box", help="x0,y0,x1,y1: fixed crop in the video frame (may exceed it), needs --factor")
+    s.add_argument("--anchor", help="x,y in the video frame (the feet point): printed in sprite pixels")
     s = sub.add_parser("qc"); s.add_argument("inputs", nargs="+"); s.add_argument("--out", required=True)
     s.add_argument("--scene", help="a real scene background of the game"); s.add_argument("--at", help="x,y in the scene")
     s = sub.add_parser("export"); s.add_argument("--anim", action="append", required=True, help="NAME=DIR")

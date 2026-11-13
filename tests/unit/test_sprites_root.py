@@ -114,3 +114,62 @@ def test_stabilize_removes_travel(sprites, tmp_path):
         centers.append((a * np.arange(256)).sum() / a.sum())
     assert max(centers) - min(centers) < 0.5
     assert centers[4] == pytest.approx(80, abs=0.5)   # the middle frame stays where it was
+
+
+def test_foot_root_with_standing_phase(sprites, tmp_path):
+    """Standing 20 frames, then walking in place: root --foot gives 0 while standing and the cycle's speed after."""
+    walk, kinds = walker(frames=73)
+    stand = np.repeat(walk[:, :1], 20, axis=1)
+    stand[..., :2] += np.random.default_rng(1).normal(0, 0.3, stand[..., :2].shape)
+    stand[..., 2] = 1.0
+    tracks = np.concatenate([stand, walk], axis=1)
+    n = tracks.shape[1]
+    frames = [f"frame_{t:04d}.png" for t in range(n)]
+    queries = [[t, 1, 1] for t in range(0, n, 2) for _ in kinds]
+    all_kinds = [k for _ in range(0, n, 2) for k in kinds]
+    tracks = np.concatenate([tracks] * len(range(0, n, 2)))   # every query frame tracks the same points again
+    (tmp_path / "q.json").write_text(json.dumps({"frames": frames, "kinds": all_kinds, "figure_height": HEIGHT,
+                                                 "queries": queries, "size": [1024, 1024]}))
+    (tmp_path / "t.json").write_text(json.dumps({"frames": frames, "tracks": tracks.tolist()}))
+    # the cycle: only the walking frames
+    cyc = tracks[:, 20:]
+    keep = [i for i, q in enumerate(queries) if q[0] >= 20]
+    (tmp_path / "qc.json").write_text(json.dumps({
+        "frames": frames[20:], "kinds": [all_kinds[i] for i in keep], "figure_height": HEIGHT,
+        "queries": [[queries[i][0] - 20, 1, 1] for i in keep], "size": [1024, 1024]}))
+    (tmp_path / "tc.json").write_text(json.dumps({"frames": frames[20:], "tracks": cyc[keep].tolist()}))
+    sprites.cmd_root(SimpleNamespace(tracks=tmp_path / "tc.json", queries=tmp_path / "qc.json",
+                                     out=tmp_path / "cycle.json", fps=24, foot=False))
+    cycle = json.loads((tmp_path / "cycle.json").read_text())
+    assert cycle["speed"] == pytest.approx(8.0, abs=0.4) and cycle["foot_speed"] > 0
+
+    sprites.cmd_root(SimpleNamespace(tracks=tmp_path / "t.json", queries=tmp_path / "q.json",
+                                     out=tmp_path / "seg.json", fps=24, foot=True, like=tmp_path / "cycle.json"))
+    seg = json.loads((tmp_path / "seg.json").read_text())
+    per_frame = np.array(seg["per_frame"])
+    assert per_frame.shape == (n - 1, 2)
+    assert np.abs(per_frame[:16]).max() < 0.15 * 8           # standing: only tracking noise
+    assert np.median(per_frame[30:, 0]) == pytest.approx(8.0, abs=0.8)  # walking, scaled to the cycle
+
+
+def test_place_feet_and_scale_box(sprites, tmp_path):
+    """place puts the feet on the given line; scale --box gives the same anchor for differently cropped figures."""
+    cut = np.zeros((300, 200, 4), np.uint8)
+    cut[50:250, 80:120] = (200, 30, 30, 255)
+    Image.fromarray(cut).save(tmp_path / "cut.png")
+    sprites.cmd_place(SimpleNamespace(cutout=tmp_path / "cut.png", out=tmp_path / "ref.png", color="00FF00",
+                                      size="400x600", at="center", height=400.0, bottom=0.06, feet=520))
+    ref = np.asarray(Image.open(tmp_path / "ref.png"))
+    rows = np.nonzero((ref[..., 0] > 100).any(1))[0]
+    assert (rows.min(), rows.max()) == (120, 519)
+
+    for name, (y0, y1) in {"a": (100, 300), "b": (200, 300)}.items():   # tall and short figure, same feet
+        frame = np.zeros((400, 300, 4), np.uint8)
+        frame[y0:y1, 140:160] = 255
+        (tmp_path / name).mkdir()
+        Image.fromarray(frame).save(tmp_path / name / "frame_0000.png")
+        sprites.cmd_scale(SimpleNamespace(inputs=[tmp_path / name], out=tmp_path / f"{name}_s", factor=0.5,
+                                          height=None, pad=4, box="-20,0,320,400", anchor=None))
+        out = np.asarray(Image.open(tmp_path / f"{name}_s" / "frame_0000.png"))
+        assert out.shape[:2] == (200, 170)
+        assert np.nonzero((out[..., 3] > 128).any(1))[0].max() == 149
