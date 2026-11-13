@@ -91,7 +91,6 @@ textarea:focus, input:focus, select:focus { outline: 2px solid var(--accent-soft
     <form class="card" id="form" autocomplete="off">
       <div class="tabs" role="tablist">
         <button type="button" role="tab" id="tab-generate" aria-selected="true">Generate</button>
-        <button type="button" role="tab" id="tab-qwen" aria-selected="false">Qwen-Image</button>
         <button type="button" role="tab" id="tab-edit" aria-selected="false">Edit</button>
       </div>
       <div class="hint" id="mode-hint"></div>
@@ -138,12 +137,9 @@ textarea:focus, input:focus, select:focus { outline: 2px solid var(--accent-soft
 "use strict";
 const $ = id => document.getElementById(id);
 const MODES = {
-  generate: {tool: "flux2-klein", files: "reference_images", min: 0, max: 4, submit: "Generate",
-    label: "Reference images (optional, up to 4)",
-    hint: "FLUX.2 [klein] 4B: text to image. With reference images it restyles or recolors them and keeps the pose."},
-  qwen: {tool: "qwen-image", files: null, min: 0, max: 0, submit: "Generate", label: "", size: "1328x1328",
+  generate: {tool: "qwen-image", files: null, min: 0, max: 0, submit: "Generate", label: "", size: "1328x1328",
     presets: [[1328, 1328], [1664, 928], [928, 1664], [1472, 1104], [1104, 1472], [1584, 1056], [1056, 1584]],
-    hint: "Qwen-Image-2512: text to image with legible text (put it in quotes) and photorealism. Larger than FLUX.2 [klein], loading takes longer."},
+    hint: "Qwen-Image-2512: text to image, also legible text (put it in quotes) and photorealism. To restyle or recolor an image use Edit."},
   edit: {tool: "qwen-image-edit", files: "images", min: 1, max: 3, submit: "Edit",
     label: "Images to edit (1 to 3)",
     hint: "Qwen-Image-Edit: change objects, text, style or background, or combine up to three images (\"the person from image 1 holds the cup from image 2\")."},
@@ -200,10 +196,8 @@ function setMode(m) {
   $("inputs-box").hidden = !cfg.max;
   $("mode-hint").textContent = cfg.hint;
   $("inputs-label").textContent = cfg.label;
-  $("prompt").placeholder = m === "qwen"
+  $("prompt").placeholder = m === "generate"
     ? "A hand-painted wooden sign on a cafe door reading \"Fresh Coffee\", morning light, photo"
-    : m === "generate"
-    ? "A cozy wooden cabin in a snowy forest at dusk, warm light in the windows, painterly concept art"
     : "Replace the background with a sunny beach";
   if (!job) $("submit").textContent = cfg.submit;
   const keep = $("preset").value;
@@ -385,7 +379,7 @@ function renderResults() {
   }
   $("results").innerHTML = results.map((r, i) => `<div class="res">
     <img src="${r.url}" alt="" data-zoom="${i}">
-    <div class="meta"><b>${({generate: "Generate", qwen: "Qwen-Image", edit: "Edit"})[r.mode]}</b>${r.seed ? ` · seed ${r.seed}` : ""}${r.width ? ` · ${r.width} × ${r.height}` : ""} · ${dur(r.seconds)}
+    <div class="meta"><b>${({generate: "Generate", edit: "Edit"})[r.mode]}</b>${r.seed ? ` · seed ${r.seed}` : ""}${r.width ? ` · ${r.width} × ${r.height}` : ""} · ${dur(r.seconds)}
       <div class="prompt" title="${esc(r.prompt)}">${esc(r.prompt)}</div></div>
     <div class="actions">
       <a class="btn" href="${r.url}" download="${esc(fileName(r))}">Download</a>
@@ -437,7 +431,6 @@ window.addEventListener("beforeunload", e => { if (results.length || job) e.prev
 
 // ------------------------------------------------------------------------------------------- start
 $("tab-generate").onclick = () => setMode("generate");
-$("tab-qwen").onclick = () => setMode("qwen");
 $("tab-edit").onclick = () => setMode("edit");
 $("preset").onchange = () => { syncSize(); saveSettings(); };
 for (const id of ["width", "height"]) $(id).onchange = () => { snap($(id)); saveSettings(); };

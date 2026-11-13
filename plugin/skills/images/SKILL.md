@@ -1,6 +1,6 @@
 ---
 name: images
-description: "Create and edit images for games on the gb10-assets server (generate_image with FLUX.2 klein, generate_image_qwen with Qwen-Image-2512, edit_image with Qwen-Image-Edit, remove_background with BiRefNet-matting): backgrounds and scenes, characters, items, sprites, icons, UI elements, textures, concept art, variants and edits of existing pictures. Use when the user wants any picture or several variants, a changed or combined image, a cutout with transparent background, or a start image for video or 3D."
+description: "Create and edit images for games on the gb10-assets server (generate_image with Qwen-Image-2512, edit_image with Qwen-Image-Edit, remove_background with BiRefNet-matting): backgrounds and scenes, characters, items, sprites, icons, UI elements, textures, concept art, variants and edits of existing pictures. Use when the user wants any picture or several variants, a changed or combined image, a cutout with transparent background, or a start image for video or 3D."
 ---
 
 # Images for games
@@ -12,9 +12,8 @@ results, or the sheet, with the Read tool before using them. Then `fetch_result(
 
 | Goal | Tool |
 |---|---|
-| new image from text | `generate_image` (fast, loads in seconds) |
-| legible text in the image (sign, poster, title, UI), photorealistic people, prompts with many details | `generate_image_qwen` (put the text in quotes; native sizes 1328x1328, 1664x928, 928x1664, 1472x1104) |
-| quick recolor or restyle that keeps the composition | `generate_image` with `reference_images` (max 4) |
+| new image from text, also legible text (sign, poster, title, UI) and photorealistic people | `generate_image` (put text in quotes; native sizes 1328x1328, 1664x928, 928x1664, 1472x1104, 1104x1472) |
+| recolor or restyle that keeps the composition | `edit_image` with 1 image |
 | change something specific: object, text, background, light, time of day, expression | `edit_image` with 1 image |
 | combine: the character from image 1 in the scene of image 2 | `edit_image` with 2-3 images |
 | the same character, item or place in a new situation | `edit_image` with the existing image as input |
@@ -25,7 +24,7 @@ results, or the sheet, with the Read tool before using them. Then `fetch_result(
 
 Agree on a style line with the user once (e.g. "hand-painted 2D adventure art, muted autumn colors, soft
 light") and put it unchanged into every prompt of the project; keep it in a file of the project if there is
-none yet. Reuse an existing asset as `reference_images` or as input of `edit_image` to match its look.
+none yet. Reuse an existing asset as input of `edit_image` to match its look.
 
 ## Prompts by asset type
 

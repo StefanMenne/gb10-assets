@@ -1,6 +1,6 @@
 ---
 name: sprite-animation
-description: "Turn a character into animated 2D sprites for a game with the gb10-assets tools (generate_image_qwen, edit_image, remove_background, generate_video with frames, track_points) and the bundled sprites.py: reference views for several directions, image-to-video walking in place (with starting and stopping) or across the frame, turning on the spot, idle, talking and gestures, lossless frames, root motion (walking speed without sliding feet), cycle selection, chroma key with despill, cleanup, scaling, quality check and export as sprite sheet and SpriteFrames for Godot. Use when the user wants a walk cycle, idle, turn or other animation of a 2D character, animated sprites, a sprite sheet or root motion for a walk."
+description: "Turn a character into animated 2D sprites for a game with the gb10-assets tools (generate_image, edit_image, remove_background, generate_video with frames, track_points) and the bundled sprites.py: reference views for several directions, image-to-video walking in place (with starting and stopping) or across the frame, turning on the spot, idle, talking and gestures, lossless frames, root motion (walking speed without sliding feet), cycle selection, chroma key with despill, cleanup, scaling, quality check and export as sprite sheet and SpriteFrames for Godot. Use when the user wants a walk cycle, idle, turn or other animation of a 2D character, animated sprites, a sprite sheet or root motion for a walk."
 ---
 
 # Animated 2D sprites
@@ -27,8 +27,7 @@ measured speed in screen pixels fits the game. Idle and other animations without
 
 ## 1. Concept image and reference
 
-`generate_image_qwen` (sharper and more realistic than `generate_image`; or `edit_image` from an existing
-picture of the character), `count` 4, 3:4 (1104x1472) for walking in place:
+`generate_image` (Qwen-Image-2512; or `edit_image` from an existing picture of the character), `count` 4, 3:4 (1104x1472) for walking in place:
 
 - the view of the animation: profile for walking across, three-quarter front-right (FR) for walking in place;
   camera height matching the perspective of the game's scenes, even light, no floor shadow

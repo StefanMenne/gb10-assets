@@ -26,7 +26,7 @@ def api(settings):
         yield client
 
 
-def submit(api, params, files=(), tool="flux2-klein"):
+def submit(api, params, files=(), tool="qwen-image"):
     body = {"request": (None, json.dumps({"tool": tool, "params": params}))}
     return api.post("/jobs", headers=AUTH, files=list(body.items()) + [("files", f) for f in files])
 
@@ -62,7 +62,7 @@ def test_token_too_short(monkeypatch, value):
 
 
 def test_job_roundtrip(api):
-    r = submit(api, {"prompt": "fox", "reference_images": ["ref.png"]}, [("ref.png", b"img")])
+    r = submit(api, {"prompt": "fox", "images": ["ref.png"]}, [("ref.png", b"img")], "qwen-image-edit")
     assert r.status_code == 201, r.text
     job_id = r.json()["id"]
     wait_for(lambda: api.get(f"/jobs/{job_id}", headers=AUTH).json()["state"] == "done")
@@ -77,14 +77,14 @@ def test_job_roundtrip(api):
 
 def test_tools_lists_schemas(api):
     tools = api.get("/tools", headers=AUTH).json()
-    assert "prompt" in tools["flux2-klein"]["properties"]
+    assert "prompt" in tools["qwen-image"]["properties"]
 
 
 @pytest.mark.parametrize("params,files,tool,needle", [
     ({"prompt": "x"}, [], "nope", "unknown tool"),
-    ({"prompt": "x", "width": 1001}, [], "flux2-klein", "multiple of 16"),
-    ({"prompt": "x", "reference_images": ["a.png"]}, [], "flux2-klein", "not uploaded"),
-    ({"prompt": "x"}, [("../evil.png", b"x")], "flux2-klein", "invalid file name"),
+    ({"prompt": "x", "width": 1001}, [], "qwen-image", "multiple of 16"),
+    ({"prompt": "x", "images": ["a.png"]}, [], "qwen-image-edit", "not uploaded"),
+    ({"prompt": "x", "images": ["../evil.png"]}, [("../evil.png", b"x")], "qwen-image-edit", "invalid file name"),
 ])
 def test_rejects_bad_requests(api, params, files, tool, needle):
     r = submit(api, params, files, tool)
@@ -94,7 +94,7 @@ def test_rejects_bad_requests(api, params, files, tool, needle):
 def test_rejects_tool_not_installed(api, monkeypatch):
     monkeypatch.setattr("gb10_assets.server.app.install_problem", runners.install_problem)
     r = submit(api, {"prompt": "x"})
-    assert r.status_code == 409 and "scripts/docker.sh install flux2-klein" in r.text
+    assert r.status_code == 409 and "scripts/docker.sh install qwen-image" in r.text
 
 
 @pytest.mark.parametrize("allowed", [True, False])
@@ -131,7 +131,7 @@ def two_tools(monkeypatch):
     monkeypatch.setitem(runners.TOOLS, "other", runners.ToolSpec("other", min_free_gb=1))
 
 
-def enqueue(q, tool="flux2-klein", prompt="p"):
+def enqueue(q, tool="qwen-image", prompt="p"):
     return q.enqueue(q.create(tool, {"prompt": prompt})).id
 
 
@@ -148,7 +148,7 @@ def test_sticky_worker_reused_for_same_tool(settings, two_tools):
     q = make_queue(settings)
     ids = [enqueue(q), enqueue(q), enqueue(q, "other"), enqueue(q)]
     assert [i.state for i in run_queue(q, ids)] == [JobState.done] * 4
-    assert FakeWorker.started == ["flux2-klein", "other", "flux2-klein"]
+    assert FakeWorker.started == ["qwen-image", "other", "qwen-image"]
 
 
 def test_idle_worker_kept_for_later_job(settings):
@@ -158,19 +158,19 @@ def test_idle_worker_kept_for_later_job(settings):
     try:
         first = enqueue(q)
         wait_for(lambda: q.get(first).state.finished)
-        assert q.status()["worker"] == "flux2-klein"
+        assert q.status()["worker"] == "qwen-image"
         second = enqueue(q)
         wait_for(lambda: q.get(second).state.finished)
     finally:
         q.shutdown()
-    assert FakeWorker.started == ["flux2-klein"]
+    assert FakeWorker.started == ["qwen-image"]
 
 
 def test_job_error_keeps_worker(settings):
     q = make_queue(settings)
     ids = [enqueue(q), enqueue(q, prompt="fail"), enqueue(q)]
     assert [i.state for i in run_queue(q, ids)] == [JobState.done, JobState.failed, JobState.done]
-    assert FakeWorker.started == ["flux2-klein"]
+    assert FakeWorker.started == ["qwen-image"]
 
 
 def test_worker_released_when_queue_empty(settings):
@@ -226,10 +226,10 @@ def test_unload_idle_worker(settings):
         wait_for(lambda: client.get(f"/jobs/{job_id}", headers=AUTH).json()["state"] == "done")
         worker = queue._worker
         assert worker is not None and worker.alive()  # kept for WORKER_IDLE_S
-        assert client.post("/unload", headers=AUTH).json() == {"unloaded": "flux2-klein"}
+        assert client.post("/unload", headers=AUTH).json() == {"unloaded": "qwen-image"}
         assert worker.stopped and queue.status()["worker"] is None
         assert queue.events.recent()[-1] | {"time": None} == {
-            "time": None, "kind": "unload", "tool": "flux2-klein", "reason": "requested on the dashboard"}
+            "time": None, "kind": "unload", "tool": "qwen-image", "reason": "requested on the dashboard"}
 
 
 def test_unload_refused_while_a_job_runs(settings):
@@ -239,7 +239,7 @@ def test_unload_refused_while_a_job_runs(settings):
         wait_for(lambda: client.get(f"/jobs/{job_id}", headers=AUTH).json()["state"] == "running"
                  and queue._worker is not None)
         r = client.post("/unload", headers=AUTH)
-        assert r.status_code == 409 and "flux2-klein job is running" in r.text
+        assert r.status_code == 409 and "qwen-image job is running" in r.text
         assert queue._worker.alive()
         queue.cancel(job_id)
 

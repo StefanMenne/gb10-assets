@@ -61,20 +61,6 @@ class JobRequest(BaseModel):
 
 
 class GenerateImage(JobRequest):
-    """Text to image (or image + prompt to image) with FLUX.2 [klein] 4B."""
-
-    tool: ClassVar[str] = "flux2-klein"
-    input_fields: ClassVar[tuple[str, ...]] = ("reference_images",)
-
-    prompt: str = Field(min_length=1, max_length=4000)
-    width: Side = 1024
-    height: Side = 1024
-    seed: Seed | None = None
-    count: Count = 1
-    reference_images: list[FileName] = Field(default_factory=list, max_length=4)
-
-
-class GenerateImageQwen(JobRequest):
     """Text to image with Qwen-Image-2512 and the 4-step Lightning LoRA: legible text, photorealism."""
 
     tool: ClassVar[str] = "qwen-image"
@@ -334,7 +320,7 @@ class BlenderScript(JobRequest):
 
 
 REQUESTS: dict[str, type[JobRequest]] = {
-    m.tool: m for m in (GenerateImage, GenerateImageQwen, EditImage, Speak, SpeakMultilingual, GenerateVideo, ImageTo3D,
+    m.tool: m for m in (GenerateImage, EditImage, Speak, SpeakMultilingual, GenerateVideo, ImageTo3D,
                         RemoveBackground, TrackPoints, BlenderScript)}
 
 

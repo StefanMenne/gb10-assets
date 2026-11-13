@@ -27,7 +27,7 @@ def client(settings):
 def test_submit_uploads_and_fetch_writes_locally(client, tmp_path):
     ref = tmp_path / "my ref (1).png"
     ref.write_bytes(b"img")
-    info = client.submit("flux2-klein", {"prompt": "fox", "reference_images": [str(ref)]})
+    info = client.submit("qwen-image-edit", {"prompt": "fox", "images": [str(ref)]})
     out = tmp_path / "out"
     (out).mkdir()
     (out / "image_1.png").write_bytes(b"old")
@@ -40,7 +40,7 @@ def test_submit_uploads_and_fetch_writes_locally(client, tmp_path):
 
 
 def test_interrupted_download_leaves_no_part_file(client, monkeypatch, tmp_path):
-    info = client.wait(client.submit("flux2-klein", {"prompt": "fox"}).id, 5)
+    info = client.wait(client.submit("qwen-image", {"prompt": "fox"}).id, 5)
 
     def chunks():
         yield b"partial"
@@ -59,13 +59,13 @@ def test_interrupted_download_leaves_no_part_file(client, monkeypatch, tmp_path)
 
 def test_submit_validates_locally(client, tmp_path):
     with pytest.raises(ApiError, match="not found"):
-        client.submit("flux2-klein", {"prompt": "x", "reference_images": [str(tmp_path / "missing.png")]})
+        client.submit("qwen-image-edit", {"prompt": "x", "images": [str(tmp_path / "missing.png")]})
     with pytest.raises(ApiError, match="invalid parameters"):
-        client.submit("flux2-klein", {"prompt": "x", "width": 1001})
+        client.submit("qwen-image", {"prompt": "x", "width": 1001})
 
 
 def test_failed_job_raises_with_log(client):
-    info = client.submit("flux2-klein", {"prompt": "fail"})
+    info = client.submit("qwen-image", {"prompt": "fail"})
     with pytest.raises(ApiError, match="bad prompt"):
         client.fetch(info.id, ".", wait=5)
 
@@ -264,7 +264,7 @@ def test_mcp_startup_check_is_one_quick_attempt(capsys):
 
 def test_wait_polls_through_an_outage(monkeypatch):
     monkeypatch.setattr(http_client, "RETRY_DELAY_S", 0)
-    job = {"id": "abc", "tool": "flux2-klein", "state": "running", "created_at": "2026-10-29T09:00:00Z"}
+    job = {"id": "abc", "tool": "qwen-image", "state": "running", "created_at": "2026-10-29T09:00:00Z"}
     answers = iter(["running", "down", "down", "down", "down", "down", "failed"])
 
     def server(request):

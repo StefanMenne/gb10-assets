@@ -129,7 +129,7 @@ def test_worker_holds_shared_lock(tool_settings):
 
 def test_tool_hash_matches_shell(tmp_path):
     """runners.tool_hash and tool_hash in scripts/lib/config.sh must agree, install.sh writes the latter."""
-    for tool in ("flux2-klein", "ltx-video"):
+    for tool in ("qwen-image", "ltx-video"):
         shell = subprocess.run(["bash", "-c", f"source scripts/lib/config.sh && tool_hash {tool}"],
                                cwd=REPO_ROOT, capture_output=True, text=True, check=True).stdout.strip()
         assert shell == tool_hash(REPO_ROOT / "tools" / tool)

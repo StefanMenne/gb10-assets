@@ -24,8 +24,8 @@ to download the results; with wait=0 it returns the current state without blocki
 fetch_result call to the background and report its completion later: then tell the user the job is running and
 end the turn instead of polling, and never start a second fetch_result for the same job. The server runs one GPU
 job at a time and loads the model per job, so request all variants in one call (count) instead of many calls.
-Images: generate_image (FLUX.2 klein, fast, reference images), generate_image_qwen (Qwen-Image-2512: legible
-text, photorealism), edit_image (Qwen-Image-Edit). Look at generated images with the Read tool before using them.
+Images: generate_image (Qwen-Image-2512: text to image, legible text, photorealism), edit_image
+(Qwen-Image-Edit: edit, restyle or combine images). Look at generated images with the Read tool before using them.
 Speech: design_voice creates a voice from a description, speak clones a voice for de/en and 8 more languages,
 speak_multilingual clones a voice into languages such as Thai, even from a reference in another language.
 Video (with sound): generate_video from text and keyframe images, audio_to_video for a given soundtrack,
@@ -104,22 +104,6 @@ def build(adapter: Adapter | None = None) -> MCPServer:
 
     @mcp.tool()
     def generate_image(
-        prompt: Annotated[str, Field(description="English prompt: subject, style, view, lighting, background")],
-        width: Annotated[int, Field(description="Multiple of 16, 256-2048")] = 1024,
-        height: Annotated[int, Field(description="Multiple of 16, 256-2048")] = 1024,
-        seed: Annotated[int | None, Field(description="Start seed; variants use seed..seed+count-1")] = None,
-        count: Annotated[int, Field(description="Number of variants in this job (1-16); a sheet.png is added if > 1")] = 1,
-        reference_images: Annotated[list[str] | None, Field(
-            description="Local image paths to edit or recolor with the prompt (max 4)")] = None,
-    ) -> dict:
-        """Create images from a text prompt with FLUX.2 [klein] 4B, optionally guided by reference images
-        (fast recoloring and restyling that keeps the pose). Returns a job_id; fetch with fetch_result."""
-        params = {"prompt": prompt, "width": width, "height": height, "seed": seed, "count": count,
-                  "reference_images": reference_images or []}
-        return submitted(adapter.client.submit("flux2-klein", params))
-
-    @mcp.tool()
-    def generate_image_qwen(
         prompt: Annotated[str, Field(description=(
             "Detailed English or Chinese prompt; put text to render in quotes, e.g. 'a cafe sign reading \"OPEN\"'"))],
         width: Annotated[int, Field(description="Multiple of 16, 256-2048; native sizes 1328x1328, 1664x928, "
@@ -128,9 +112,9 @@ def build(adapter: Adapter | None = None) -> MCPServer:
         seed: Annotated[int | None, Field(description="Start seed; variants use seed..seed+count-1")] = None,
         count: Annotated[int, Field(description="Number of variants in this job (1-16); a sheet.png is added if > 1")] = 1,
     ) -> dict:
-        """Create images from a text prompt with Qwen-Image-2512 (20B, 4-step Lightning version): better than
-        generate_image at legible text (signs, posters, UI, infographics), photorealistic people and complex
-        prompts, but larger and slower to load. No reference images. Returns a job_id; fetch with fetch_result."""
+        """Create images from a text prompt with Qwen-Image-2512 (20B, 4-step Lightning version), also legible
+        text (signs, posters, UI), photorealistic people and complex prompts. No reference images: to restyle,
+        recolor or reuse an existing image use edit_image. Returns a job_id; fetch with fetch_result."""
         params = {"prompt": prompt, "width": width, "height": height, "seed": seed, "count": count}
         return submitted(adapter.client.submit("qwen-image", params))
 

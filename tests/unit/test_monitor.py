@@ -17,7 +17,7 @@ def api(settings):
         yield client
 
 
-def kinds(events, tool="flux2-klein"):
+def kinds(events, tool="qwen-image"):
     return [e["kind"] for e in events if e.get("tool") == tool]
 
 
@@ -33,7 +33,7 @@ def test_summarize_params_cuts_texts_and_hides_code():
 def test_job_events(api, settings):
     job_id = submit(api, {"prompt": "fox " * 100}).json()["id"]
     wait_for(lambda: "unload" in kinds(api.app.state.queue.events.recent()))
-    events = [e for e in api.app.state.queue.events.recent() if e.get("tool") == "flux2-klein"]
+    events = [e for e in api.app.state.queue.events.recent() if e.get("tool") == "qwen-image"]
     assert kinds(events) == ["job_start", "load_start", "load_end", "job_end", "unload"]
     start, end = events[0], events[3]
     assert start["job"] == job_id and start["params"]["prompt"].endswith("…")
@@ -75,7 +75,7 @@ def test_dashboard_without_auth(api):
     submit(api, {"prompt": "fox"})
     wait_for(lambda: "job_end" in kinds(api.app.state.queue.events.recent()))
     data = api.get("/dashboard/data").json()
-    row = next(t for t in data["tools"] if t["tool"] == "flux2-klein")
+    row = next(t for t in data["tools"] if t["tool"] == "qwen-image")
     assert row["jobs_24h"] == {"done": 1} and row["last_job"]["state"] == "done"
     assert row["last_load"]["kind"] == "load_end"
     assert data["now"]["mem"]["total"] > 0 and data["history"]
@@ -90,10 +90,10 @@ def test_dashboard_shows_loaded_worker(settings):
         wait_for(lambda: (queue.overview()["worker"] or {}).get("loaded") is not None)
         Monitor(settings, queue).sample()
         overview = queue.overview()
-        assert overview["running"]["id"] == job_id and overview["worker"]["tool"] == "flux2-klein"
+        assert overview["running"]["id"] == job_id and overview["worker"]["tool"] == "qwen-image"
         assert overview["worker"]["loaded"] is not None
         client.delete(f"/jobs/{job_id}", headers=AUTH)
-    assert FakeWorker.started == ["flux2-klein"]
+    assert FakeWorker.started == ["qwen-image"]
 
 
 def test_page_cache_scan(tmp_path):

@@ -10,7 +10,6 @@ from gb10_assets.shared.schemas import (
     BlenderScript,
     EditImage,
     GenerateImage,
-    GenerateImageQwen,
     GenerateVideo,
     ImageTo3D,
     JobState,
@@ -25,20 +24,12 @@ from gb10_assets.shared.schemas import (
 )
 
 
-def test_defaults_and_input_files():
-    req = GenerateImage(prompt="a fox", reference_images=["a.png", "b.png"])
-    assert (req.width, req.height, req.count, req.seed) == (1024, 1024, 1, None)
-    assert req.input_files() == ["a.png", "b.png"]
-    assert REQUESTS["flux2-klein"] is GenerateImage
-
-
 @pytest.mark.parametrize("params", [
     {"prompt": ""},
     {"prompt": "x", "width": 1000},
     {"prompt": "x", "height": 4096},
     {"prompt": "x", "count": 0},
     {"prompt": "x", "count": 17},
-    {"prompt": "x", "reference_images": ["../etc/passwd"]},
     {"prompt": "x", "unknown": 1},
 ])
 def test_invalid(params):
@@ -54,11 +45,11 @@ def test_edit_defaults_and_input_files():
 
 
 def test_qwen_image_defaults_and_no_inputs():
-    req = GenerateImageQwen(prompt="a sign reading \"OPEN\"")
+    req = GenerateImage(prompt="a sign reading \"OPEN\"")
     assert (req.width, req.height, req.count, req.input_files()) == (1328, 1328, 1, [])
-    assert REQUESTS["qwen-image"] is GenerateImageQwen
+    assert REQUESTS["qwen-image"] is GenerateImage
     with pytest.raises(ValueError):
-        GenerateImageQwen.model_validate({"prompt": "x", "reference_images": ["a.png"]})
+        GenerateImage.model_validate({"prompt": "x", "reference_images": ["a.png"]})
 
 
 @pytest.mark.parametrize("params", [
