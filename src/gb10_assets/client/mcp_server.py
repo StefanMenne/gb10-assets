@@ -217,6 +217,34 @@ def build(adapter: Adapter | None = None) -> MCPServer:
         return submitted(adapter.client.submit("ltx-video", params))
 
     @mcp.tool()
+    def control_video(
+        prompt: Annotated[str, Field(description=(
+            "English prompt describing the look: subject, style, setting, light and sound, not the motion (the "
+            "control video gives it)"))],
+        control_video: Annotated[str, Field(description=(
+            "Local path of the control video: depth (near white, far black, e.g. from the blender script "
+            "depth_video), canny edges or pose skeletons. The output takes its size (sides cropped to multiples "
+            "of 64), length (8k+1 frames, max 20 s) and frame rate"))],
+        image: Annotated[str | None, Field(description=(
+            "Local path of the first frame: the look of the figure; it should match the first control frame in "
+            "position and size"))] = None,
+        control_strength: Annotated[float, Field(description=(
+            "0.1-1: 1 follows the control video closely, 0.5-0.8 leaves the model more freedom"))] = 1.0,
+        count: Annotated[int, Field(description="Number of variants in this job (1-8)")] = 1,
+        seed: Annotated[int | None, Field(description="Start seed; variants use seed..seed+count-1")] = None,
+        enhance_prompt: Annotated[bool, Field(description="Expand a short prompt with the text encoder first")] = False,
+        frames: Annotated[bool, Field(description=(
+            "Also return every frame lossless as PNGs in video_<seed>_frames.zip"))] = False,
+    ) -> dict:
+        """Create a video with sound with LTX-2.5 whose motion follows a control video (Union Control IC-LoRA):
+        e.g. a figure from an image that moves like an animated 3D model rendered as depth. Outputs
+        video_<seed>.mp4 and .jpg (with frames=True also video_<seed>_frames.zip). Returns a job_id."""
+        params = {"prompt": prompt, "control_video": control_video, "images": [image] if image else [],
+                  "control_strength": control_strength, "count": count, "seed": seed,
+                  "enhance_prompt": enhance_prompt, "frames": frames}
+        return submitted(adapter.client.submit("ltx-video", params))
+
+    @mcp.tool()
     def audio_to_video(
         prompt: Annotated[str, Field(description="English prompt describing the scene, people and camera")],
         audio: Annotated[str, Field(description="Local path of the speech, song or sound to make the video for")],

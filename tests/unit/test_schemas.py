@@ -105,6 +105,8 @@ def test_video_modes():
     assert GenerateVideo(prompt="x", audio="song.wav", images=["face.png"]).input_files() == ["face.png", "song.wav"]
     retake = GenerateVideo(prompt="x", video="in.mp4", start_s=1, end_s=2.5, regenerate="audio")
     assert retake.input_files() == ["in.mp4"]
+    control = GenerateVideo(prompt="x", control_video="depth.mp4", images=["first.png"], control_strength=0.7)
+    assert control.input_files() == ["first.png", "depth.mp4"]
     assert REQUESTS["ltx-video"] is GenerateVideo
 
 
@@ -122,6 +124,13 @@ def test_video_modes():
     {"prompt": "x", "video": "in.mp4", "start_s": 1, "end_s": 2, "audio": "a.wav"},
     {"prompt": "x", "start_s": 1, "end_s": 2},  # time range without video
     {"prompt": "x", "regenerate": "video"},
+    {"prompt": "x", "control_video": "d.mp4", "images": ["a.png", "b.png"]},
+    {"prompt": "x", "control_video": "d.mp4", "audio": "a.wav"},
+    {"prompt": "x", "control_video": "d.mp4", "video": "in.mp4", "start_s": 1, "end_s": 2},
+    {"prompt": "x", "control_video": "d.mp4", "width": 1024, "height": 1024},  # size follows the control video
+    {"prompt": "x", "control_video": "d.mp4", "duration_s": 4},
+    {"prompt": "x", "control_video": "d.mp4", "control_strength": 0},
+    {"prompt": "x", "control_strength": 0.7},  # strength without control video
 ])
 def test_video_invalid(params):
     with pytest.raises(ValidationError):

@@ -1,6 +1,6 @@
 ---
 name: game-figure
-description: Turn a description or image of a character, animal or object into a textured, rigged and animated GLB for a game with the gb10-assets tools (generate_image, image_to_3d, blender). Use when the user wants a 3D game figure, an animated model, a rigged GLB or a talking 3D character.
+description: Turn a description or image of a character, animal or object into a textured, rigged and animated GLB for a game with the gb10-assets tools (generate_image, image_to_3d, blender), and into videos where the figure from the image moves like its animation (control_video). Use when the user wants a 3D game figure, an animated model, a rigged GLB, a talking 3D character, or a filmed-looking video of a figure with a given motion.
 ---
 
 # Animated game figure
@@ -50,3 +50,20 @@ bending through the body, the figure walks forward (-Y in Blender). Fix landmark
 
 For a talking figure: `rig_quadruped` with `--save-blend`, then `talk_video` with the `.blend` and a voice
 recording (see the voice-lines skill).
+
+## 6. Video with the figure's look and the rig's motion
+
+The rig gives exact motion, the source image the look: render the animation as a depth video and let
+`control_video` paint the figure from the image over it.
+
+1. `blender` with `script` `depth_video`, args `[rigged.glb, depth.mp4, --action Walk, --seconds 5,
+   --res 1024x1024, --fill 0.78, --color first.png]`. The camera looks at the front; `--fill` is the figure's
+   height in the picture: match it to the source image (compare `first.png` with it). `--turn 35` turns the
+   figure over the clip. `--res` is the video size, `--seconds` its length (memory table of the video skill).
+2. `control_video` with `control_video` depth.mp4, `image` the source image (same aspect ratio as `--res`), a
+   prompt about the look and the setting, not the motion.
+
+Small motions stay small: for a clear walk raise `rig_biped --stride` (0.9) and `--walk` (0.8 s per cycle).
+The frame is set on the first frame, so a hop (`--mode hop`) leaves it at the top: lower `--fill` (and the
+figure in the image) for jumps.
+

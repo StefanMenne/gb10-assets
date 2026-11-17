@@ -24,6 +24,7 @@ arguments, so a first try with the obvious arguments is fine.
 | eyes | `tex_eyes`, `tex_eyecover`, `eye_geo` |
 | hair strands | `tex_hair` |
 | talking figure video from a voice recording | `talk_video` (needs the `--save-blend` of `rig_quadruped`) |
+| animation as a depth video, the control video for `control_video` | `depth_video` (see the game-figure skill) |
 
 After every step that changes the look, render a `preview` and look at it with the Read tool.
 

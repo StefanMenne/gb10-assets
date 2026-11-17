@@ -41,8 +41,8 @@ textarea { min-height: 110px; resize: vertical; }
 textarea:focus, input:focus, select:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
 .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .pair.three { grid-template-columns: 1fr 1fr 1fr; }
-.tabs { display: grid; grid-template-columns: 1fr 1fr 1fr; background: var(--grid); border-radius: 8px; padding: 3px; }
-.tabs button { border: 0; background: none; color: var(--muted); padding: 6px; border-radius: 6px; font: inherit; font-weight: 600; cursor: pointer; }
+.tabs { display: grid; grid-template-columns: repeat(4, 1fr); background: var(--grid); border-radius: 8px; padding: 3px; }
+.tabs button { border: 0; background: none; color: var(--muted); padding: 6px 2px; border-radius: 6px; font: inherit; font-size: 13px; font-weight: 600; white-space: nowrap; cursor: pointer; }
 .tabs button[aria-selected=true] { background: var(--card); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
 .hint { font-size: 12px; color: var(--muted); font-weight: 400; }
 .hint.bad { color: var(--bad); }
@@ -99,6 +99,7 @@ textarea:focus, input:focus, select:focus { outline: 2px solid var(--accent-soft
       <div class="tabs" role="tablist">
         <button type="button" role="tab" id="tab-generate" aria-selected="true">Text / images</button>
         <button type="button" role="tab" id="tab-audio" aria-selected="false">Audio</button>
+        <button type="button" role="tab" id="tab-control" aria-selected="false">Control</button>
         <button type="button" role="tab" id="tab-retake" aria-selected="false">Retake</button>
       </div>
       <div class="hint" id="mode-hint"></div>
@@ -131,6 +132,19 @@ textarea:focus, input:focus, select:focus { outline: 2px solid var(--accent-soft
             <option value="audio">Only audio (keep the picture)</option>
           </select>
         </label>
+      </div>
+
+      <div class="f" id="control-box">
+        <span>Control video (depth, canny edges or pose)</span>
+        <div class="drop" id="control-drop" tabindex="0">Drop a control video here or click to choose</div>
+        <div class="media" id="control-media" hidden>
+          <video id="control-preview" controls playsinline loop muted preload="metadata"></video>
+          <div class="name" id="control-name"></div><button type="button" class="x" id="control-remove" title="Remove" aria-label="Remove control video">×</button>
+        </div>
+        <input type="file" id="control-file" accept="video/*" hidden>
+        <div class="hint" id="control-info"></div>
+        <label class="f">Strength <input type="number" id="strength" min="0.1" max="1" step="0.05" value="1"></label>
+        <div class="hint">1 follows the motion closely; at 0.7 a walk already shrinks to barely moving feet.</div>
       </div>
 
       <div class="f" id="audio-box">
@@ -198,12 +212,15 @@ const MODES = {
     hint: "From text, or from images: one image is the first frame, two are first and last frame, more are spread evenly over the clip. Describe action, camera and sound in the prompt; speech in quotes."},
   audio: {submit: "Generate", maxImages: 1, label: "First frame (optional)",
     hint: "The video is made for the soundtrack and keeps it: lip sync for speech, motion to music. The clip is as long as the audio (at most 20 s)."},
+  control: {submit: "Generate", maxImages: 1, label: "First frame (optional): the look and the scene",
+    hint: "The motion and layout follow the control video (depth: near white, far black, e.g. from the blender script depth_video), the look follows the prompt and the first frame. Size, length and frame rate are those of the control video. Describe the look, not the motion."},
   retake: {submit: "Retake", maxImages: 0, label: "",
     hint: "Regenerates a time range of a video (picture, sound or both); the rest stays. The prompt describes the new section."},
 };
 // LTX-2.5 memory on GB10, the same model as ltx_memory_gb in gb10_assets/shared/schemas.py
 const MAX_GB = 98, MAX_FRAMES = 481, DEFAULT_SIZE = [1536, 1024], KEYFRAMES_S = 5;
 const memoryGb = (w, h, frames, fps) => 51 + 0.172 * w * h * frames / 1e6 + 0.39 * frames / fps;
+const CONTROL_EXTRA_GB = 5;  // the control video's tokens, as CONTROL_EXTRA_GB in tools/ltx-video/run.py
 const framesFor = (s, fps) => Math.min(MAX_FRAMES, Math.round(s * fps / 8) * 8 + 1);
 function maxSeconds(w, h, fps) {
   let f = MAX_FRAMES;
@@ -213,7 +230,7 @@ function maxSeconds(w, h, fps) {
 const PRESETS = [[1536, 1024], [1024, 1536], [1920, 1088], [1280, 832], [832, 1280], [1024, 704], [1024, 576], [576, 1024], [1024, 1024], [768, 512], [512, 768]];
 const SETTINGS_KEY = "gb10-assets-video", TOKEN_KEY = "gb10-assets-token";
 
-let mode = "generate", images = [], audio = null, video = null, results = [], job = null, seq = 0;
+let mode = "generate", images = [], audio = null, video = null, control = null, results = [], job = null, seq = 0;
 
 // ------------------------------------------------------------------------------------------- storage
 function load(key, fallback) { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; } }
@@ -263,11 +280,13 @@ function setMode(m) {
   $("images-label").textContent = cfg.label;
   $("images-box").hidden = !cfg.maxImages;
   $("audio-box").hidden = m !== "audio";
+  $("control-box").hidden = m !== "control";
   $("video-box").hidden = $("retake-box").hidden = m !== "retake";
-  $("shape-box").hidden = m === "retake";
+  $("shape-box").hidden = m === "retake" || m === "control";
   $("prompt").placeholder = {
     generate: "A red fox trots through fresh snow in a quiet pine forest at dawn, slow tracking shot from the side, soft crunching footsteps, birdsong",
     audio: "A woman in a green coat speaks to the camera in a cozy library, warm lamp light, medium close-up",
+    control: "A cute plush toy rabbit with soft grey and white fur and long floppy ears in a bright photo studio, soft even light, quiet footsteps",
     retake: "The man turns around and waves at the camera, smiling",
   }[m];
   if (!job) $("submit").textContent = cfg.submit;
@@ -297,7 +316,7 @@ function snap(el, lo, hi, step) {
 function renderMemory() {
   const el = $("memory");
   el.classList.remove("bad");
-  if (mode === "retake") return;
+  if (mode === "retake" || mode === "control") return;
   const fps = Number($("fps").value);
   const fixed = $("duration-mode").value === "fixed";
   const seconds = fixed ? Number($("duration").value) : mode === "generate" && images.length > 1 ? KEYFRAMES_S : null;
@@ -324,7 +343,7 @@ function saveSettings() {
   save(SETTINGS_KEY, {mode, prompt: $("prompt").value, preset: $("preset").value, width: $("width").value,
                       height: $("height").value, count: $("count").value, fps: $("fps").value,
                       durationMode: $("duration-mode").value, duration: $("duration").value,
-                      enhance: $("enhance").checked, regenerate: $("regenerate").value});
+                      enhance: $("enhance").checked, regenerate: $("regenerate").value, strength: $("strength").value});
 }
 
 // ------------------------------------------------------------------------------------------- inputs
@@ -420,6 +439,34 @@ $("video-preview").onloadedmetadata = () => {
 $("set-start").onclick = () => { if (video) $("start").value = $("video-preview").currentTime.toFixed(1); };
 $("set-end").onclick = () => { if (video) $("end").value = $("video-preview").currentTime.toFixed(1); };
 
+function setControl(inp) {
+  if (control) URL.revokeObjectURL(control.url);
+  control = inp;
+  $("control-media").hidden = !control; $("control-drop").hidden = !!control;
+  $("control-preview").src = control ? control.url : "";
+  $("control-name").textContent = control ? control.label : "";
+  $("control-info").textContent = "";
+}
+drop($("control-drop"), $("control-file"), async files => {
+  const f = files[0];
+  if (!f) return;
+  if (!f.type.startsWith("video/")) return showError(`${f.name} is not a video.`);
+  showError("");
+  try { setControl(input(await readFile(f), "control", "mp4", f.name)); } catch (err) { showError(`Could not read ${f.name}: ${err.message}`); }
+});
+$("control-remove").onclick = () => setControl(null);
+// what the server makes of it: sides cropped to multiples of 64, the length to 8k+1 frames (estimate at 24 fps)
+$("control-preview").onloadedmetadata = () => {
+  const v = $("control-preview"), w = Math.floor(v.videoWidth / 64) * 64, h = Math.floor(v.videoHeight / 64) * 64;
+  if (!w || !h || !isFinite(v.duration)) return;
+  const need = memoryGb(w, h, framesFor(v.duration, 24), 24) + CONTROL_EXTRA_GB;
+  const el = $("control-info");
+  el.textContent = `Output ${w} × ${h}${w !== v.videoWidth || h !== v.videoHeight ? " (cropped)" : ""}, ${v.duration.toFixed(1)} s · `
+    + (need > MAX_GB ? `needs ~${need.toFixed(0)} GB, more than ${MAX_GB} GB: render the control video smaller or shorter`
+                     : `~${need.toFixed(0)} GB of ${MAX_GB} GB`);
+  el.classList.toggle("bad", need > MAX_GB);
+};
+
 // ------------------------------------------------------------------------------------------- job
 function showError(msg) { $("error").textContent = msg || ""; $("error").classList.toggle("on", !!msg); }
 function setStatus(text) {
@@ -441,6 +488,13 @@ function request() {
     if ($("start").value === "" || $("end").value === "" || !(start < end)) throw new Error("Set the time range: From must be before To.");
     Object.assign(params, {video: video.name, start_s: start, end_s: end, regenerate: $("regenerate").value});
     files.push(video);
+  } else if (mode === "control") {
+    if (!control) throw new Error("Add the control video.");
+    if (images.length > 1) throw new Error("At most one image (the first frame) in this mode.");
+    const strength = Number($("strength").value);
+    if (!(strength >= 0.1 && strength <= 1)) throw new Error("Strength must be between 0.1 and 1.");
+    Object.assign(params, {control_video: control.name, control_strength: strength, images: images.map(i => i.name)});
+    files.push(control, ...images);
   } else {
     if (mode === "audio") {
       if (!audio) throw new Error("Add the soundtrack.");
@@ -536,7 +590,7 @@ $("cancel").onclick = async () => {
 };
 
 // ------------------------------------------------------------------------------------------- results
-const MODE_NAMES = {generate: "Video", audio: "Audio to video", retake: "Retake"};
+const MODE_NAMES = {generate: "Video", audio: "Audio to video", control: "Control", retake: "Retake"};
 function renderResults() {
   $("clear").hidden = !results.length;
   $("results-note").textContent = results.length ? `${results.length} video${results.length > 1 ? "s" : ""}, kept in this tab only` : "";
@@ -618,6 +672,7 @@ function applySettings(s) {
   if (s.preset === "custom") { $("width").value = s.width || 1024; $("height").value = s.height || 576; }
   if (s.enhance != null) $("enhance").checked = s.enhance;
   if (s.regenerate) $("regenerate").value = s.regenerate;
+  if (s.strength) $("strength").value = s.strength;
   sync();
 }
 $("preset").innerHTML = `<option value="auto">Auto (1536 × 1024 or the first image's ratio)</option>`
@@ -627,7 +682,7 @@ for (const k of Object.keys(MODES)) $(`tab-${k}`).onclick = () => { setMode(k); 
 for (const id of ["preset", "duration-mode", "fps"]) $(id).onchange = sync;
 $("duration").onchange = () => { snap($("duration"), 1, 20, 0.5); sync(); };
 for (const id of ["width", "height"]) $(id).onchange = () => { snap($(id), 256, 2048, 64); sync(); };
-for (const id of ["prompt", "count", "enhance", "regenerate"]) $(id).addEventListener("change", saveSettings);
+for (const id of ["prompt", "count", "enhance", "regenerate", "strength"]) $(id).addEventListener("change", saveSettings);
 $("prompt").addEventListener("keydown", e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) $("form").requestSubmit(); });
 
 const saved = load(SETTINGS_KEY, {});

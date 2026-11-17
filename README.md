@@ -28,11 +28,11 @@ The server's [dashboard](#dashboard) shows GPU, memory and tool state and an eve
 | `qwen-image-edit` | [Qwen-Image-Edit-2511](https://huggingface.co/Qwen/Qwen-Image-Edit-2511) with the 4-step [Lightning LoRA](https://huggingface.co/lightx2v/Qwen-Image-Edit-2511-Lightning) | edit 1-3 images with an instruction | Apache-2.0 | ~59 GB | `gb10-assets edit` |
 | `qwen-tts` | [Qwen3-TTS 1.7B VoiceDesign](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign) and [Base](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-Base) | speech with a voice designed from a description or cloned from a recording; de, en, es, fr, it, ja, ko, pt, ru, zh | Apache-2.0 | ~9 GB | `gb10-assets voice`, `speak` |
 | `confucius-tts` | [Confucius4-TTS](https://huggingface.co/netease-youdao/Confucius4-TTS) | cross-lingual voice cloning (e.g. a German voice speaking Thai); 14 languages incl. th, vi, id, ms | Apache-2.0 | ~6 GB | `gb10-assets speak-multilingual` |
-| `ltx-video` | [LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5) 22B distilled, NVFP4 | video with sound from text or keyframe images, video for an audio track, retake of a time range | [LTX-2.x Community](https://github.com/Lightricks/LTX-2/blob/main/LICENSE-2_x)¹ | ~50 GB | `gb10-assets video`, `audio-to-video`, `retake` |
+| `ltx-video` | [LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5) 22B distilled, NVFP4 | video with sound from text or keyframe images, video for an audio track, motion from a control video (depth, edges, pose; Union Control IC-LoRA), retake of a time range | [LTX-2.x Community](https://github.com/Lightricks/LTX-2/blob/main/LICENSE-2_x)¹ | ~50 GB | `gb10-assets video`, `audio-to-video`, `control-video`, `retake` |
 | `pixal3d` | [Pixal3D](https://huggingface.co/Comfy-Org/Pixal3D) (on TRELLIS.2), run by [ComfyUI](https://github.com/Comfy-Org/ComfyUI) | one image to a textured 3D model: GLB with PBR maps (base color, metallic, roughness, normal, occlusion) | MIT² | ~9 GB | `gb10-assets 3d` |
 | `birefnet` | [BiRefNet-matting](https://huggingface.co/ZhengPeng7/BiRefNet-matting), run by [ComfyUI](https://github.com/Comfy-Org/ComfyUI) | remove the background: PNG with soft alpha (hair, fur, motion blur) at the image's full resolution, optionally the mask | MIT² | ~0.9 GB | `gb10-assets cutout` |
 | `tapnet` | [TAPNet BootsTAPIR](https://github.com/google-deepmind/tapnet) (Google DeepMind) | track points through video frames, also through short occlusions: root motion of walk cycles (sprite-animation skill) | Apache-2.0 | ~0.2 GB | `gb10-assets track` |
-| `blender` | [Blender](https://www.blender.org) 5.2 as a Python module (bpy), Cycles and EEVEE on the GPU | Python scripts on 3D models: bundled ones for rigging and animating figures, texture and eye fixes, previews and videos of talking figures, or own code | GPL-3.0³ | none (1.9 GB installed) | `gb10-assets blender` |
+| `blender` | [Blender](https://www.blender.org) 5.2 as a Python module (bpy), Cycles and EEVEE on the GPU | Python scripts on 3D models: bundled ones for rigging and animating figures, texture and eye fixes, previews, depth videos and videos of talking figures, or own code | GPL-3.0³ | none (1.9 GB installed) | `gb10-assets blender` |
 
 ¹ Not an open-source license: free, also commercially, for companies under $10M annual revenue; the model is
 gated, so downloading it needs `HF_TOKEN` and the license accepted on its Hugging Face page.
@@ -111,10 +111,10 @@ drag and drop or paste, a download button per result, and "Edit this" to edit a 
 jobs through the API and asks for `GB10_ASSETS_TOKEN` once. The results stay in the browser tab; the server
 deletes each job as soon as the page has its images.
 
-**Video studio:** `http://<gb10-host>:8750/video` (also linked in the header) does the same for ltx-video: text
-or keyframes to video, audio to video, and retakes of a time range. It shows what fits the memory for a size and
-length before submitting, plays the results, and takes "Retake this" or the frame shown in the player
-("Frame → keyframe", e.g. the last one to continue a clip) back into the form.
+**Video studio:** `http://<gb10-host>:8750/video` (also linked in the header) does the same for ltx-video: text or
+keyframes to video, audio to video, motion from a control video (depth, edges, pose), and retakes of a time range.
+It shows what fits the memory for a size and length before submitting, plays the results, and takes "Retake this"
+or the frame shown in the player ("Frame → keyframe", e.g. the last one to continue a clip) back into the form.
 
 **Unload:** a button in the dashboard header stops the idle worker and frees its memory at once, for example
 when another program needs it before `WORKER_IDLE_S` runs out.
@@ -180,6 +180,7 @@ gb10-assets video "the flower blooms" -i bud.png -i bloom.png -d 4 -o ~/gb10-vid
 gb10-assets video "the fox walks in place" -i fox.png -i fox.png -d 3 --frames -o ~/gb10-videos # + lossless PNGs
 gb10-assets audio-to-video "a woman sings into a microphone on stage" -a song.wav -i singer.png -o ~/gb10-videos
 gb10-assets retake clip.mp4 "the fox jumps over a log" --start 2 --end 4 -o ~/gb10-videos       # edit a segment
+gb10-assets control-video "a plush rabbit in a studio" -c depth.mp4 -i rabbit.png -o ~/gb10-videos # motion of depth.mp4
 gb10-assets 3d chair.png -o ~/gb10-3d                                                          # image to GLB
 gb10-assets 3d chair.png --resolution 1024 --faces 50000 --texture 2048 -o ~/gb10-3d          # faster, game-ready
 gb10-assets cutout fox.png knight.jpg -o ~/gb10-images                                          # transparent background

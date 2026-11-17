@@ -182,12 +182,14 @@ def test_mcp_speech_tools(client, tmp_path):
 
 
 def test_mcp_video_tools(client, tmp_path):
-    for name in ("first.png", "song.wav", "clip.mp4"):
+    for name in ("first.png", "song.wav", "clip.mp4", "depth.mp4"):
         (tmp_path / name).write_bytes(b"x")
     server = mcp_server.build(mcp_server.Adapter(client))
     calls = [("generate_video", {"prompt": "fox", "images": [str(tmp_path / "first.png")], "duration_s": 4}),
              ("audio_to_video", {"prompt": "singer", "audio": str(tmp_path / "song.wav")}),
-             ("retake_video", {"video": str(tmp_path / "clip.mp4"), "prompt": "a cat", "start_s": 1, "end_s": 2})]
+             ("retake_video", {"video": str(tmp_path / "clip.mp4"), "prompt": "a cat", "start_s": 1, "end_s": 2}),
+             ("control_video", {"prompt": "plush rabbit", "control_video": str(tmp_path / "depth.mp4"),
+                                "image": str(tmp_path / "first.png"), "control_strength": 0.8})]
     for name, args in calls:
         sub = json.loads(call(server, name, args).content[0].text)
         info = client.wait(sub["job_id"], 5)

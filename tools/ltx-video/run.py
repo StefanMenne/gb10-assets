@@ -1,8 +1,8 @@
-"""LTX-2.5 worker: video with sound from text, keyframe images or an audio track, and retakes of existing videos.
+"""LTX-2.5 worker: video with sound from text, keyframe images, an audio track or a control video, and retakes.
 
 Weights: $WEIGHTS_DIR/LTX-2.5 (download.sh): the 22B distilled transformer in NVFP4, run through the
 NVFP4 GEMM of ltx-kernels (post_install.sh), plus the bf16 Gemma 4 text encoder, VAEs, duration head and spatial
-upscaler. All modes share one ModelRegistry, so every component is read from disk once and stays in memory
+upscaler, and the Union Control IC-LoRA. All modes share one ModelRegistry, so every component is read from disk once and stays in memory
 (~50 GB) for the next jobs; the pipelines themselves only build modules around the cached weights.
 
 Modes, chosen by the inputs (see GenerateVideo in gb10_assets/shared/schemas.py):
@@ -12,6 +12,13 @@ Modes, chosen by the inputs (see GenerateVideo in gb10_assets/shared/schemas.py)
                   the audio is kept and the video generated for it (lip sync, music).
   retake          RetakePipeline (distilled): regenerates start_s..end_s of the video and/or its audio. The input
                   is conformed first: 8k+1 frames, sides cropped to multiples of 32.
+  control         ICLoraPipeline with the Union Control IC-LoRA (trained on LTX-2.3, used as it is by Lightricks'
+                  LTX-2.5 workflow): the motion and layout follow a control video (depth: near white, far black;
+                  canny edges or pose skeletons), the look follows the prompt and the optional first frame. Size,
+                  length and frame rate are those of the control video (conformed: 8k+1 frames, sides cropped to
+                  multiples of 64); stage 1 runs at half size with the LoRA and the control video at a quarter,
+                  stage 2 upscales without them. control_strength is the LoRA strength (Lightricks: 0.5-0.8 for a
+                  looser guide); the pipeline only wraps the cached weights, so building one per job costs nothing.
 Outputs: video_<seed>.mp4 (H.264 + AAC) per variant and video_<seed>.jpg with four frames of it, so a client
 that cannot play videos can still look at the result. With `frames` also video_<seed>_frames.zip: every frame as
 it left the VAE, lossless as frame_0000.png ... (for keying and sprites, where H.264 would smear the edges).
@@ -34,6 +41,7 @@ VIDEO_VAE = ROOT / "vae" / "ltx-2.5-video-vae-bf16.safetensors"
 AUDIO_VAE = ROOT / "vae" / "ltx-2.5-audio-vae-bf16.safetensors"
 DURATION_HEAD = ROOT / "model_patches" / "ltx-2.5-duration-head-bf16.safetensors"
 UPSAMPLER = ROOT / "latent_upscale_models" / "ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors"
+CONTROL_LORA = ROOT / "loras" / "ltx-2.3-22b-ic-lora-union-control-ref0.5.safetensors"
 DEFAULT_SIZE = (1536, 1024)
 KEYFRAMES_DURATION_S = 5.0
 MAX_FRAMES = 481  # 20 s at 24 fps
@@ -42,6 +50,8 @@ MAX_FRAMES = 481  # 20 s at 24 fps
 # memory_gb fits the measurements within 3 GB. 1536x1024 at 10 s needs ~120 GB and runs out of memory. MAX_GB
 # leaves the system about 20 GB. Same model as ltx_memory_gb in gb10_assets/shared/schemas.py (tests compare them).
 MAX_GB = 98.0
+# control mode: the control video adds tokens in stage 1; 1024x1024x121 frames peaked at 79.1 GB, 4.3 GB over memory_gb
+CONTROL_EXTRA_GB = 5.0
 
 
 def unified_mem_get_info(device=None):
@@ -60,7 +70,9 @@ def load():
     from ltx_core.loader.registry import ModelRegistry
     from ltx_kernels.nvfp4 import unavailable_reason
     from ltx_pipelines.a2vid_two_stage import A2VidPipelineTwoStage
+    from ltx_core.loader import LTXV_LORA_COMFY_RENAMING_MAP, LoraPathStrengthAndSDOps
     from ltx_pipelines.distilled import DistilledPipeline
+    from ltx_pipelines.ic_lora import ICLoraPipeline
     from ltx_pipelines.retake import RetakePipeline
     from ltx_pipelines.utils.model_paths import ModelPaths
     from ltx_pipelines.utils.quantization_factory import QuantizationKind
@@ -84,6 +96,10 @@ def load():
         "audio": A2VidPipelineTwoStage(paths, distilled_lora=(), spatial_upsampler_path=str(UPSAMPLER), loras=(),
                                        **kw),
         "retake": RetakePipeline(paths, loras=(), distilled=True, **kw),
+        # per job, for its LoRA strength: the constructor only wraps the registry's weights
+        "control": lambda strength: ICLoraPipeline(
+            paths, spatial_upsampler_path=str(UPSAMPLER),
+            loras=[LoraPathStrengthAndSDOps(str(CONTROL_LORA), strength, LTXV_LORA_COMFY_RENAMING_MAP)], **kw),
     }
 
 
@@ -133,8 +149,8 @@ def fit_size(width, height, frames, fps):
     return w, h
 
 
-def check_memory(width, height, frames, fps):
-    need = memory_gb(width, height, frames, fps)
+def check_memory(width, height, frames, fps, extra_gb=0.0):
+    need = memory_gb(width, height, frames, fps) + extra_gb
     if need > MAX_GB:
         raise ValueError(
             f"{width}x{height} with {frames} frames ({frames / fps:.1f} s) needs ~{need:.0f} GB, more than the "
@@ -176,9 +192,9 @@ def stereo_audio(src, dst):
     return dst
 
 
-def conform_video(src, dst):
-    """Copy of src that RetakePipeline accepts: 8k+1 frames (at most MAX_FRAMES), sides cropped to multiples of
-    32. Returns src itself if it already fits."""
+def conform_video(src, dst, multiple=32):
+    """Copy of src that RetakePipeline (multiple 32) or ICLoraPipeline (64) accepts: 8k+1 frames (at most
+    MAX_FRAMES), sides cropped to multiples of `multiple`. Returns src itself if it already fits."""
     import torch
     from ltx_core.types import Audio
     from ltx_pipelines.utils.media_io import encode_video, get_videostream_metadata
@@ -186,11 +202,11 @@ def conform_video(src, dst):
 
     meta = get_videostream_metadata(str(src))
     frames = min(MAX_FRAMES, (meta.frames - 1) // 8 * 8 + 1)
-    h, w = meta.height // 32 * 32, meta.width // 32 * 32
+    h, w = meta.height // multiple * multiple, meta.width // multiple * multiple
     if frames == meta.frames and (h, w) == (meta.height, meta.width):
         return src
     if frames < 9 or h < 64 or w < 64:
-        raise ValueError(f"video too small for a retake: {meta.width}x{meta.height}, {meta.frames} frames")
+        raise ValueError(f"video too small: {meta.width}x{meta.height}, {meta.frames} frames")
     top, left = (meta.height - h) // 2, (meta.width - w) // 2
     video = torch.cat([f[:, top:top + h, left:left + w] for f in decode_video_by_frame(str(src), "cpu", 0, frames)])
     audio = decode_audio_from_file(str(src), torch.device("cpu"), 0.0, frames / meta.fps)
@@ -287,7 +303,22 @@ def run(pipes, params, job_dir):
     prompt, fps, enhance = params["prompt"], params.get("fps", 24), params.get("enhance_prompt", False)
     duration = params.get("duration_s")
 
-    if params.get("video"):
+    if params.get("control_video"):
+        if not CONTROL_LORA.exists():
+            raise FileNotFoundError(f"{CONTROL_LORA} missing, update the tool on the GB10 system: "
+                                    "scripts/docker.sh install ltx-video")
+        source = conform_video(inp / params["control_video"], job_dir / "control.mp4", multiple=64)
+        meta = get_videostream_metadata(str(source))
+        fps = round(meta.fps)
+        check_memory(meta.width, meta.height, meta.frames, fps, CONTROL_EXTRA_GB)
+        pipe = pipes["control"](params.get("control_strength", 1.0))
+        first = [ImageConditioningInput.at(images[0], 0, 1.0)] if images else []
+
+        def generate(seed):
+            return pipe(prompt=prompt, seed=seed, height=meta.height, width=meta.width, num_frames=meta.frames,
+                        frame_rate=fps, images=first, video_conditioning=[(str(source), 1.0)],
+                        enhance_prompt=enhance)
+    elif params.get("video"):
         source = conform_video(inp / params["video"], job_dir / "conformed.mp4")
         meta = get_videostream_metadata(str(source))
         fps = round(meta.fps)

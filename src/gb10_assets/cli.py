@@ -10,6 +10,7 @@
     gb10-assets speak-multilingual "text" ["text" ...] -r ref.wav -l th -o DIR
     gb10-assets video "prompt" -o DIR [-i first.png [-i last.png]] [-d 5] [-W 1536 -H 1024] [--fps 24] [-n 2] [--frames]
     gb10-assets audio-to-video "prompt" -a song.wav -o DIR [-i first.png] [-d 10]
+    gb10-assets control-video "prompt" -c depth.mp4 -o DIR [-i first.png] [-s 0.8] [-n 2] [--frames]
     gb10-assets retake in.mp4 "prompt" --start 2 --end 4 -o DIR [--regenerate video|audio]
     gb10-assets 3d object.png -o DIR [--resolution 1024] [--faces 50000] [--texture 2048] [--keep-background]
     gb10-assets cutout image.png [image2.png ...] -o DIR [--mask]
@@ -127,6 +128,18 @@ def main(argv: list[str] | None = None) -> None:
     vi.add_argument("-n", "--count", type=int, default=1)
     vi.add_argument("--seed", type=int)
 
+    cv = sub.add_parser("control-video", parents=[gen],
+                        help="video whose motion follows a depth, canny or pose video (LTX-2.5)")
+    cv.add_argument("prompt")
+    cv.add_argument("-c", "--control", required=True, help=(
+        "control video: depth (near white), canny edges or pose skeletons; sets size, length and fps"))
+    cv.add_argument("-i", "--image", help="first frame (the look of the figure)")
+    cv.add_argument("-s", "--strength", type=float, default=1.0, help="0.1-1, lower follows the control looser")
+    cv.add_argument("--enhance", action="store_true", help="expand the prompt with the text encoder")
+    cv.add_argument("--frames", action="store_true", help="also every frame lossless as PNGs (zip)")
+    cv.add_argument("-n", "--count", type=int, default=1)
+    cv.add_argument("--seed", type=int)
+
     av = sub.add_parser("audio-to-video", parents=[gen], help="video for an audio track (LTX-2.5)")
     av.add_argument("prompt")
     av.add_argument("-a", "--audio", required=True, help="audio the video is generated for")
@@ -228,6 +241,11 @@ def main(argv: list[str] | None = None) -> None:
                                                "width": a.width, "height": a.height, "fps": a.fps,
                                                "enhance_prompt": a.enhance, "frames": a.frames, "count": a.count,
                                                "seed": a.seed})
+        elif a.cmd == "control-video":
+            _submit_and_fetch(a, "ltx-video", {"prompt": a.prompt, "control_video": a.control,
+                                               "images": [a.image] if a.image else [],
+                                               "control_strength": a.strength, "enhance_prompt": a.enhance,
+                                               "frames": a.frames, "count": a.count, "seed": a.seed})
         elif a.cmd == "audio-to-video":
             _submit_and_fetch(a, "ltx-video", {"prompt": a.prompt, "audio": a.audio,
                                                "images": [a.image] if a.image else [], "duration_s": a.duration,

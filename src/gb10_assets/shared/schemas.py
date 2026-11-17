@@ -164,12 +164,13 @@ def ltx_max_seconds(width: int, height: int, fps: int) -> float:
 
 
 class GenerateVideo(JobRequest):
-    """LTX-2.5 (22B distilled, NVFP4): video with sound from text, keyframe images or an audio track, or a retake
-    of a time range of an existing video. The mode follows from the inputs: ``video`` -> retake, ``audio`` -> audio
-    to video (with an optional first frame in ``images``), otherwise text/images to video."""
+    """LTX-2.5 (22B distilled, NVFP4): video with sound from text, keyframe images, an audio track or a control
+    video, or a retake of a time range of an existing video. The mode follows from the inputs: ``video`` ->
+    retake, ``audio`` -> audio to video, ``control_video`` -> motion from the control video (both with an optional
+    first frame in ``images``), otherwise text/images to video."""
 
     tool: ClassVar[str] = "ltx-video"
-    input_fields: ClassVar[tuple[str, ...]] = ("images", "audio", "video")
+    input_fields: ClassVar[tuple[str, ...]] = ("images", "audio", "video", "control_video")
 
     prompt: str = Field(min_length=1, max_length=8000)
     images: list[FileName] = Field(default_factory=list, max_length=4, description=(
@@ -179,6 +180,11 @@ class GenerateVideo(JobRequest):
     start_s: float | None = Field(None, ge=0)
     end_s: float | None = Field(None, gt=0)
     regenerate: Literal["both", "video", "audio"] = Field("both", description="Retake: which stream to regenerate")
+    control_video: FileName | None = Field(None, description=(
+        "Control video (Union Control IC-LoRA): depth (near white, far black), canny edges or pose skeletons; the "
+        "output follows its motion and layout and takes its size, length and frame rate"))
+    control_strength: float = Field(1.0, ge=0.1, le=1.0, description=(
+        "Control: LoRA strength, 1 follows the control video closely, 0.5-0.8 leaves the model more freedom"))
     duration_s: float | None = Field(None, ge=1, le=20, description=(
         "Default: predicted from the prompt (one image or none, at most what fits the size), 5 s (several images), "
         "length of audio (max 20 s). Memory limits the length per size: 1536x1024 6 s, 1280x832 9 s, "
@@ -186,7 +192,7 @@ class GenerateVideo(JobRequest):
     width: VideoSide | None = Field(None, description=(
         "Default 1536x1024, or the first image's aspect ratio; for longer clips it shrinks to fit the memory"))
     height: VideoSide | None = None
-    fps: int = Field(24, ge=12, le=50, description="Frame rate; a retake keeps the frame rate of the video")
+    fps: int = Field(24, ge=12, le=50, description="Frame rate; a retake or control video keeps its own")
     enhance_prompt: bool = Field(False, description="Let the Gemma text encoder expand a short prompt first")
     frames: bool = Field(False, description=(
         "Also return every frame lossless as PNGs in video_<seed>_frames.zip (for keying and sprites)"))
@@ -204,6 +210,15 @@ class GenerateVideo(JobRequest):
             raise ValueError("start_s, end_s and regenerate need video")
         if self.audio is not None and len(self.images) > 1:
             raise ValueError("audio to video takes at most one image (the first frame)")
+        if self.control_video is not None:
+            if self.video is not None or self.audio is not None:
+                raise ValueError("a control video does not combine with video (retake) or audio")
+            if len(self.images) > 1:
+                raise ValueError("a control video takes at most one image (the first frame)")
+            if self.width is not None or self.duration_s is not None:
+                raise ValueError("with a control video, size, length and frame rate follow the control video")
+        elif self.control_strength != 1.0:
+            raise ValueError("control_strength needs control_video")
         if (self.width is None) != (self.height is None):
             raise ValueError("give both width and height or neither")
         seconds = self.duration_s or (LTX_KEYFRAMES_S if len(self.images) > 1 and self.audio is None else None)
@@ -293,6 +308,9 @@ BLENDER_SCRIPTS = {
     "tex_hair": "in.glb out.glb --color R,G,B@radius|--dark L [--region box]: paint hair strands into the texture",
     "talk_video": "rig.blend voice.wav out.mp4 [--mode fast|slow]: video of a rig_quadruped figure speaking "
                   "the recording (jaw follows the loudness)",
+    "depth_video": "rigged.glb depth.mp4 [--action Walk] [--seconds 5] [--res 1024x1024] [--fill 0.78] [--turn 0] "
+                   "[--color first.png]: the animation as a depth video (near white), the control video for "
+                   "control_video",
 }
 ScriptArg = Annotated[str, Field(max_length=4000)]
 
