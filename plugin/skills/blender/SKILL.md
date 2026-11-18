@@ -37,6 +37,11 @@ decimation, UV or material fixes, procedural models, renders with a custom camer
 - Blender starts from an empty scene: import first (`bpy.ops.import_scene.gltf(filepath="in.glb")`), export at
   the end (`bpy.ops.export_scene.gltf(filepath="out.glb")`)
 - arguments arrive in `sys.argv[1:]` (from `args`)
+- write at least one result file; a job whose code writes nothing fails with "wrote no files", even if
+  everything you need is in the `print()` output (write it to a small `.json` or `.txt` then)
+- imported objects can carry a transform: a glTF import often leaves a rotation on the object, so
+  `v.co` is not the world position; use `obj.matrix_world @ v.co` or
+  `bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)` before measuring
 - available: bpy, bmesh, mathutils, numpy, scipy, trimesh, PIL and `import texlib` (texture helpers of the
   bundled scripts)
 - `print()` what you need to know (sizes, counts, bounding boxes); it comes back in `log`
@@ -47,5 +52,8 @@ decimation, UV or material fixes, procedural models, renders with a custom camer
 
 Start with a small measuring script before a large change: one cheap job that prints the bounding box, the
 objects, materials and vertex counts saves several failed ones.
+
+If a job fails, the `fetch_result` error holds the cause and the end of the log (the traceback of own
+code); fix the code from that, no extra `job_status` call is needed.
 
 A `403` means the server allows only bundled scripts (`BLENDER_CODE=0`); say so and use a script instead.

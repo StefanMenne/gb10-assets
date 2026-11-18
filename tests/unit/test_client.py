@@ -8,6 +8,7 @@ import httpx
 import pytest
 from conftest import TOKEN, FakeWorker
 from fastapi.testclient import TestClient
+from mcp.server.mcpserver.exceptions import ToolError, UnexpectedToolError
 
 from gb10_assets.client import http_client, mcp_server
 from gb10_assets.client.http_client import ApiError, Client, VersionMismatch, free_path, upload_name
@@ -152,6 +153,19 @@ def test_mcp_tools_end_to_end(client, tmp_path):
     res = call(server, "fetch_result", {"job_id": sub["job_id"], "target_dir": str(tmp_path), "wait": 5})
     assert json.loads(res.content[0].text)["files"] == [str((tmp_path / "image_1.png").resolve())]
     assert (tmp_path / "image_1.png").read_bytes() == b"png:fox"
+
+
+def test_mcp_errors_reach_the_model(client, tmp_path):
+    # the SDK shows only the text of a ToolError; the cause of a failed job must not become a bare
+    # "Error executing tool fetch_result"
+    server = mcp_server.build(mcp_server.Adapter(client))
+    sub = json.loads(call(server, "generate_image", {"prompt": "fail"}).content[0].text)
+    with pytest.raises(ToolError) as exc:
+        call(server, "fetch_result", {"job_id": sub["job_id"], "target_dir": str(tmp_path), "wait": 5})
+    assert not isinstance(exc.value, UnexpectedToolError) and "bad prompt" in str(exc.value)
+    with pytest.raises(ToolError) as exc:
+        call(server, "edit_image", {"prompt": "x", "images": [str(tmp_path / "missing.png")]})
+    assert not isinstance(exc.value, UnexpectedToolError) and "input file not found" in str(exc.value)
 
 
 def test_mcp_edit_image_uploads_inputs(client, tmp_path):

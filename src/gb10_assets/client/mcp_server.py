@@ -5,10 +5,12 @@ job id; fetch_result blocks only as long as its ``wait`` argument allows.
 """
 from __future__ import annotations
 
+import functools
 import sys
 from typing import Annotated
 
 from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import Field
 
 from .. import __version__
@@ -39,7 +41,8 @@ BLENDER_DESCRIPTION = """Run a Python script in Blender 5.2 (bpy, headless, GPU:
 Give either `script` (bundled, below) or `code` (own Python), plus `args` like a command line (sys.argv[1:]) and
 the input `files`. The script runs in a directory holding the input files under their names (refer to inputs in
 args by the local path or the file name) and writes its results there under NEW names; all new files are
-returned. print() output is in the job log (log_tail). Usage of a bundled script: its main options are in its
+returned. Own code must write at least one file, otherwise the job fails ("wrote no files"); print() alone is
+not enough. print() output is in the job log (log_tail). Usage of a bundled script: its main options are in its
 line below; args ["--help"] (no files needed) lists all of them: the job returns no files, only the help in "log".
 A script fails with its usage text on wrong arguments.
 
@@ -56,7 +59,9 @@ head at the front), write a template with --dump-landmarks out.json, adapt it an
 rig_hop needs no landmarks and works for any shape. talk_video needs the --save-blend file of rig_quadruped.
 
 Own code: bpy, bmesh, mathutils, numpy, scipy, trimesh, PIL and the bundled modules (import texlib) are
-available; Blender starts from an empty scene. For Cycles on the GPU set
+available; Blender starts from an empty scene. Imported objects can carry a transform (a glTF import often
+leaves a rotation on the object): measure in world space (obj.matrix_world @ v.co) or apply the transforms
+first. A failed job reports its error and the end of its log in the fetch_result error. For Cycles on the GPU set
 bpy.context.preferences.addons["cycles"].preferences.compute_device_type = "CUDA", call get_devices(), enable
 the devices and set scene.cycles.device = "GPU". The server may disable own code (BLENDER_CODE=0, 403).
 Returns a job_id; fetch with fetch_result."""
@@ -102,7 +107,27 @@ def build(adapter: Adapter | None = None) -> MCPServer:
     adapter = adapter or Adapter()
     mcp = MCPServer("gb10-assets", instructions=INSTRUCTIONS, version=__version__)
 
-    @mcp.tool()
+    def tool(**kwargs):
+        """mcp.tool() that passes the text of every error on to the model. The SDK shows only the text of a
+        ToolError and reduces anything else to "Error executing tool <name>", which would hide the cause of
+        a failed job (error and log tail), a missing input file or an unreachable server."""
+        register = mcp.tool(**kwargs)
+
+        def decorate(fn):
+            @functools.wraps(fn)
+            def wrapper(*args, **kw):
+                try:
+                    return fn(*args, **kw)
+                except ToolError:
+                    raise
+                except ApiError as e:
+                    raise ToolError(str(e)) from e
+                except Exception as e:
+                    raise ToolError(f"{type(e).__name__}: {e}") from e
+            return register(wrapper)
+        return decorate
+
+    @tool()
     def generate_image(
         prompt: Annotated[str, Field(description=(
             "Detailed English or Chinese prompt; put text to render in quotes, e.g. 'a cafe sign reading \"OPEN\"'"))],
@@ -118,7 +143,7 @@ def build(adapter: Adapter | None = None) -> MCPServer:
         params = {"prompt": prompt, "width": width, "height": height, "seed": seed, "count": count}
         return submitted(adapter.client.submit("qwen-image", params))
 
-    @mcp.tool()
+    @tool()
     def edit_image(
         prompt: Annotated[str, Field(description="English edit instruction, e.g. 'replace the background with a "
                                                  "beach', 'the character from image 1 sits on the chair from image 2'")],
@@ -136,7 +161,7 @@ def build(adapter: Adapter | None = None) -> MCPServer:
                   "height": height}
         return submitted(adapter.client.submit("qwen-image-edit", params))
 
-    @mcp.tool()
+    @tool()
     def design_voice(
         voice_description: Annotated[str, Field(description=(
             "Description of the voice, e.g. 'warm female voice, about 40, low pitch, calm and friendly, slow pace'"))],
@@ -153,7 +178,7 @@ def build(adapter: Adapter | None = None) -> MCPServer:
                   "seed": seed}
         return submitted(adapter.client.submit("qwen-tts", params))
 
-    @mcp.tool()
+    @tool()
     def speak(
         texts: Annotated[list[str], Field(description="Texts to speak, one wav per text (max 64)")],
         reference_audio: Annotated[str, Field(description="Local path of a recording of the voice (3-20 s)")],
@@ -169,7 +194,7 @@ def build(adapter: Adapter | None = None) -> MCPServer:
                   "language": language, "seed": seed}
         return submitted(adapter.client.submit("qwen-tts", params))
 
-    @mcp.tool()
+    @tool()
     def speak_multilingual(
         texts: Annotated[list[str], Field(description=(
             "Texts to speak, one wav per text (max 64); outside en/zh/ja write numbers as words"))],
@@ -184,7 +209,7 @@ def build(adapter: Adapter | None = None) -> MCPServer:
         params = {"texts": texts, "language": language, "reference_audio": reference_audio, "seed": seed}
         return submitted(adapter.client.submit("confucius-tts", params))
 
-    @mcp.tool()
+    @tool()
     def generate_video(
         prompt: Annotated[str, Field(description=(
             "English prompt in flowing sentences: subject, action, camera movement, lighting, sound and spoken "
@@ -216,7 +241,7 @@ def build(adapter: Adapter | None = None) -> MCPServer:
                   "frames": frames}
         return submitted(adapter.client.submit("ltx-video", params))
 
-    @mcp.tool()
+    @tool()
     def control_video(
         prompt: Annotated[str, Field(description=(
             "English prompt describing the look: subject, style, setting, light and sound, not the motion (the "
@@ -244,7 +269,7 @@ def build(adapter: Adapter | None = None) -> MCPServer:
                   "enhance_prompt": enhance_prompt, "frames": frames}
         return submitted(adapter.client.submit("ltx-video", params))
 
-    @mcp.tool()
+    @tool()
     def audio_to_video(
         prompt: Annotated[str, Field(description="English prompt describing the scene, people and camera")],
         audio: Annotated[str, Field(description="Local path of the speech, song or sound to make the video for")],
@@ -262,7 +287,7 @@ def build(adapter: Adapter | None = None) -> MCPServer:
                   "width": width, "height": height, "count": count, "seed": seed}
         return submitted(adapter.client.submit("ltx-video", params))
 
-    @mcp.tool()
+    @tool()
     def retake_video(
         video: Annotated[str, Field(description="Local path of the video to edit (e.g. a generated one)")],
         prompt: Annotated[str, Field(description=(
@@ -281,7 +306,7 @@ def build(adapter: Adapter | None = None) -> MCPServer:
                   "count": count, "seed": seed}
         return submitted(adapter.client.submit("ltx-video", params))
 
-    @mcp.tool()
+    @tool()
     def image_to_3d(
         image: Annotated[str, Field(description=(
             "Local path of an image of one object, ideally on a plain background; generate one first if needed"))],
@@ -300,7 +325,7 @@ def build(adapter: Adapter | None = None) -> MCPServer:
                   "max_faces": max_faces, "texture_size": texture_size, "count": count, "seed": seed}
         return submitted(adapter.client.submit("pixal3d", params))
 
-    @mcp.tool()
+    @tool()
     def remove_background(
         images: Annotated[list[str], Field(description="Local paths of the images (1-32)")],
         mask: Annotated[bool, Field(description="Also return the mask (white = object)")] = False,
@@ -310,7 +335,7 @@ def build(adapter: Adapter | None = None) -> MCPServer:
         with a transparent background, with mask=True also <stem>_mask.png. About a second per image after a few seconds of loading. Returns a job_id."""
         return submitted(adapter.client.submit("birefnet", {"images": images, "mask": mask}))
 
-    @mcp.tool()
+    @tool()
     def track_points(
         frames: Annotated[list[str], Field(description=(
             "Local PNG frames of one video in order, or a directory of them (taken in name order); 2-600 frames "
@@ -326,7 +351,7 @@ def build(adapter: Adapter | None = None) -> MCPServer:
         frames; look at it). A few seconds for a short clip. Returns a job_id."""
         return submitted(adapter.client.submit("tapnet", track_params(frames, queries, resolution)))
 
-    @mcp.tool(description=BLENDER_DESCRIPTION.format(
+    @tool(description=BLENDER_DESCRIPTION.format(
         scripts="\n".join(f"- {name} {usage}" for name, usage in BLENDER_SCRIPTS.items())))
     def blender(
         files: Annotated[list[str] | None, Field(description="Local paths of the input files (max 32)")] = None,
@@ -338,12 +363,12 @@ def build(adapter: Adapter | None = None) -> MCPServer:
         params = {"files": files or [], "script": script, "code": code, "args": args or []}
         return submitted(adapter.client.submit("blender", params))
 
-    @mcp.tool()
+    @tool()
     def job_status(job_id: str) -> dict:
         """Current state of a job: queued (with queue_position), running, done, failed or cancelled."""
         return adapter.client.status(job_id).model_dump(mode="json", exclude_none=True)
 
-    @mcp.tool()
+    @tool()
     def fetch_result(
         job_id: str,
         target_dir: Annotated[str, Field(description="Local directory for the result files (created if missing)")],
@@ -366,7 +391,7 @@ def build(adapter: Adapter | None = None) -> MCPServer:
         client.delete(job_id)
         return result
 
-    @mcp.tool()
+    @tool()
     def cancel_job(job_id: str) -> dict:
         """Cancel a queued or running job and delete it with all its files on the server."""
         adapter.client.delete(job_id)
