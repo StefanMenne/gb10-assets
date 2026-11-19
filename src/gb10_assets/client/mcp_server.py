@@ -312,8 +312,8 @@ def build(adapter: Adapter | None = None) -> MCPServer:
             "Local path of an image of one object, ideally on a plain background; generate one first if needed"))],
         remove_background: Annotated[bool, Field(description="Cut the object out first; False only for an image "
                                                              "with a clean black or transparent background")] = True,
-        fast: Annotated[bool, Field(description="About 3x faster (~4 instead of ~13 min), a bit less detail: for "
-                                                "first tries and many variants")] = False,
+        fast: Annotated[bool, Field(description="2-3x faster, a bit less detail: for first tries and many "
+                                                "variants")] = False,
         resolution: Annotated[int | None, Field(description="Voxels of the shape: 2048 (default), 1536 (default "
                                                             "with fast) or 1024")] = None,
         max_faces: Annotated[int, Field(description="Faces of the mesh (10000-2000000); lower for game assets")] = 700_000,
@@ -323,7 +323,8 @@ def build(adapter: Adapter | None = None) -> MCPServer:
     ) -> dict:
         """Create a textured 3D model from one image with Pixal3D (TRELLIS.2 based): the shape follows the image,
         in the photo's camera perspective. Outputs model_<seed>.glb (PBR: base color, metallic, roughness, normal,
-        occlusion) and model_<seed>.png, a render of it. Takes ~13 minutes per variant, ~4 with fast. Returns a job_id."""
+        occlusion) and model_<seed>.png, a render of it. Takes ~4-13 minutes per variant (longer for large,
+        detailed objects), ~2-4 with fast. Returns a job_id."""
         params = {"image": image, "remove_background": remove_background, "fast": fast, "resolution": resolution,
                   "max_faces": max_faces, "texture_size": texture_size, "count": count, "seed": seed}
         return submitted(adapter.client.submit("pixal3d", params))
@@ -368,7 +369,8 @@ def build(adapter: Adapter | None = None) -> MCPServer:
 
     @tool()
     def job_status(job_id: str) -> dict:
-        """Current state of a job: queued (with queue_position), running, done, failed or cancelled."""
+        """Current state of a job: queued (queue_position: jobs ahead of it, the running one included), running,
+        done, failed or cancelled."""
         return adapter.client.status(job_id).model_dump(mode="json", exclude_none=True)
 
     @tool()

@@ -180,7 +180,8 @@ class JobQueue:
     def _info(self, job: Job) -> JobInfo:
         info = job.info.model_copy()
         if info.state == JobState.queued and job.info.id in self._pending:
-            info.queue_position = self._pending.index(job.info.id)
+            # jobs ahead of it, the running one included: 0 = it starts now
+            info.queue_position = self._pending.index(job.info.id) + (1 if self._running else 0)
         if info.state == JobState.failed:
             info.log_tail = job.tail()
         return info

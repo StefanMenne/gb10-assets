@@ -198,7 +198,7 @@ def test_cancel_queued_and_running(settings):
     q.start()
     try:
         wait_for(lambda: q.get(running).state == JobState.running)
-        assert q.get(queued).queue_position == 0
+        assert q.get(queued).queue_position == 1   # the running job is ahead of it
         assert q.cancel(queued).state == JobState.cancelled
         q.cancel(running)
         wait_for(lambda: q.get(running).state == JobState.cancelled)

@@ -161,7 +161,7 @@ def main(argv: list[str] | None = None) -> None:
 
     d3 = sub.add_parser("3d", parents=[gen], help="image to textured 3D model, GLB (Pixal3D)")
     d3.add_argument("image")
-    d3.add_argument("--fast", action="store_true", help="about 3x faster (~4 min), a bit less detail")
+    d3.add_argument("--fast", action="store_true", help="2-3x faster, a bit less detail")
     d3.add_argument("--resolution", type=int, choices=[1024, 1536, 2048], help="voxels: 2048, with --fast 1536")
     d3.add_argument("--faces", type=int, default=700_000, help="faces of the mesh")
     d3.add_argument("--texture", type=int, choices=[1024, 2048, 4096], default=4096, help="texture map size")

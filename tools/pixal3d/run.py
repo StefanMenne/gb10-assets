@@ -10,8 +10,9 @@ background removal and crop, MoGe field of view, Pixal3D conditioning, sparse st
 upsampled to `resolution`, texture, remesh, decimate, UV unwrap and baking of base color, metallic, roughness,
 normal and ambient occlusion maps. The DiT runs in bf16 (the template uses the int8 one: blotchy textures).
 
-Default: full quality, 2048 voxels, remesh at 1024 and more steps than the template (~13 min for a figure,
-measured on the GB10). `fast`: the template's 1536 voxels, remesh at 768 and step counts (~4 min).
+Default: full quality, 2048 voxels, remesh at 1024 and more steps than the template. `fast`: the template's
+1536 voxels, remesh at 768 and step counts, 2-3x faster. Measured on the GB10: 216 s / 101 s (fast) for a
+slim figure, 776 s / ~230 s for a broad, detailed one; the time grows with the object's surface.
 Outputs: model_<seed>.glb per variant and model_<seed>.png, a front render of it.
 """
 import os

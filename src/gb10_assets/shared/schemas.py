@@ -243,8 +243,8 @@ class ImageTo3D(JobRequest):
     image: FileName = Field(description="One object, ideally on a plain background")
     remove_background: bool = Field(True, description="Cut the object out first (BiRefNet); off for images that "
                                                       "already have a transparent or clean black background")
-    fast: bool = Field(False, description="About 3x faster (~4 instead of ~13 min for a figure): voxel resolution "
-                                          "1536 instead of 2048 and fewer sampling steps, a bit less detail")
+    fast: bool = Field(False, description="2-3x faster, a bit less detail: voxel resolution 1536 instead of "
+                                          "2048 and fewer sampling steps")
     resolution: Literal[1024, 1536, 2048] | None = Field(None, description="Voxel resolution of the shape, "
                                                                            "default 2048 (1536 with fast)")
     max_faces: int = Field(700_000, ge=10_000, le=2_000_000, description="Faces of the exported mesh")
@@ -372,7 +372,8 @@ class JobInfo(BaseModel):
     created_at: datetime
     started_at: datetime | None = None
     finished_at: datetime | None = None
-    queue_position: int | None = Field(None, description="0 = next to run; only while queued")
+    queue_position: int | None = Field(None, description="Jobs ahead of it, the running one included (0 = starts now); "
+                                                    "only while queued")
     outputs: list[str] = Field(default_factory=list, description="Result file names, available when done")
     error: str | None = None
     log_tail: list[str] = Field(default_factory=list)

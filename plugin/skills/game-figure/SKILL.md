@@ -21,7 +21,7 @@ Show the sheet to the user and let them pick; fix details with `edit_image` inst
 ## 2. Image to 3D
 
 `image_to_3d` with `max_faces` 10000-50000 and `texture_size` 2048 for game assets (`fast` for a first try:
-~4 instead of ~13 minutes). Check the `.png` render: is the back plausible, are legs separate?
+~2-4 instead of ~4-13 minutes). Check the `.png` render: is the back plausible, are legs separate?
 
 ## 3. Clean up
 
