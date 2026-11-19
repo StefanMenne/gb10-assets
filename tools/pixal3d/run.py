@@ -6,9 +6,12 @@ Weights: $WEIGHTS_DIR in ComfyUI's model folder layout (download.sh).
 
 The workflow is Comfy-Org's template "Pixal3D & TRELLIS.2: Image to Model" (workflow_templates,
 3d_pixal3d_trellis2_image_to_model.json) on its Pixal3D path, with the same samplers and post-processing:
-background removal and crop, MoGe field of view, Pixal3D conditioning, sparse structure (12 steps), shape at
-512 (20 steps) and upsampled to `resolution` (12 steps), texture (12 steps), remesh, decimate, UV unwrap and
-baking of base color, metallic, roughness, normal and ambient occlusion maps.
+background removal and crop, MoGe field of view, Pixal3D conditioning, sparse structure, shape at 512 and
+upsampled to `resolution`, texture, remesh, decimate, UV unwrap and baking of base color, metallic, roughness,
+normal and ambient occlusion maps. The DiT runs in bf16 (the template uses the int8 one: blotchy textures).
+
+Default: full quality, 2048 voxels, remesh at 1024 and more steps than the template (~13 min for a figure,
+measured on the GB10). `fast`: the template's 1536 voxels, remesh at 768 and step counts (~4 min).
 Outputs: model_<seed>.glb per variant and model_<seed>.png, a front render of it.
 """
 import os
@@ -25,11 +28,20 @@ ROOT = Path(os.environ.get("WEIGHTS_DIR", "weights"))
 COMFYUI = ROOT.parent / "build" / "ComfyUI"   # post_install.sh
 FILES = {
     "clip_vision": "dino_v3_L_naf_fp32.safetensors",
-    "diffusion_models": "pixal3d_int8_convrot.safetensors",
+    "diffusion_models": "pixal3d_bf16.safetensors",
     "vae": ("trellis_2_shape_vae_bf16.safetensors", "trellis_2_texture_vae_bf16.safetensors"),
     "background_removal": "birefnet.safetensors",
     "geometry_estimation": "moge_2_vitl_normal_fp16.safetensors",
 }
+# sampler steps: sparse structure, shape at 512, upsampled shape, texture
+STEPS = {"full": (25, 30, 20, 20), "fast": (12, 20, 12, 12)}   # fast: the template's
+
+
+def settings(p):
+    """(voxel resolution, remesh resolution, steps) for the request's `fast` and `resolution`."""
+    fast = p.get("fast", False)
+    resolution = p.get("resolution") or (1536 if fast else 2048)
+    return resolution, 1024 if resolution >= 2048 else 768, STEPS["fast" if fast else "full"]
 
 
 def load():
@@ -39,6 +51,7 @@ def load():
 def workflow(image, seed, p):
     """The template's Pixal3D path in API format; node ids are the template's, 400-402 are the outputs here."""
     n = {}
+    resolution, remesh, steps = settings(p)
 
     def add(nid, cls, **inputs):
         n[str(nid)] = {"class_type": cls, "inputs": inputs}
@@ -70,28 +83,28 @@ def workflow(image, seed, p):
     add(125, "RescaleCFG", model=ref(199), multiplier=0.7)
     add(108, "ModelSamplingSD3", model=ref(125), shift=5.0)
     add(87, "EmptyTrellis2LatentStructure", batch_size=1)
-    add(3, "KSampler", model=ref(108), seed=seed, steps=12, cfg=7.5, sampler_name="euler", scheduler="normal",
-        positive=pos, negative=neg, latent_image=ref(87), denoise=1.0)
+    add(3, "KSampler", model=ref(108), seed=seed, steps=steps[0], cfg=7.5, sampler_name="euler",
+        scheduler="normal", positive=pos, negative=neg, latent_image=ref(87), denoise=1.0)
     add(119, "VaeDecodeStructureTrellis2", samples=ref(3), vae=ref(117), resolution="32")
     # shape at 512, then upsampled
     add(91, "Trellis2ShapeStage", positive=pos, negative=neg, voxel=ref(119))
     add(279, "CFGOverride", model=ref(319), cfg=1.0, start_percent=0.769, end_percent=1.0)
     add(126, "RescaleCFG", model=ref(279), multiplier=0.5)
-    add(18, "KSampler", model=ref(126), seed=seed, steps=20, cfg=7.5, sampler_name="euler", scheduler="normal",
+    add(18, "KSampler", model=ref(126), seed=seed, steps=steps[1], cfg=7.5, sampler_name="euler", scheduler="normal",
         positive=ref(91, 0), negative=ref(91, 1), latent_image=ref(91, 2), denoise=1.0)
     add(94, "Trellis2UpsampleStage", positive=ref(91, 0), negative=ref(91, 1), shape_latent=ref(18), vae=ref(117),
-        target_resolution=p.get("resolution", 1536))
-    add(23, "KSampler", model=ref(126), seed=seed, steps=12, cfg=7.5, sampler_name="euler", scheduler="simple",
+        target_resolution=resolution)
+    add(23, "KSampler", model=ref(126), seed=seed, steps=steps[2], cfg=7.5, sampler_name="euler", scheduler="simple",
         positive=ref(94, 0), negative=ref(94, 1), latent_image=ref(94, 2), denoise=1.0)
     add(92, "VaeDecodeShapeTrellis", samples=ref(23), vae=ref(117))
     # texture
     add(98, "Trellis2TextureStage", positive=ref(94, 0), negative=ref(94, 1), shape_latent=ref(23))
-    add(12, "KSampler", model=ref(319), seed=seed, steps=12, cfg=1.0, sampler_name="euler", scheduler="normal",
+    add(12, "KSampler", model=ref(319), seed=seed, steps=steps[3], cfg=1.0, sampler_name="euler", scheduler="normal",
         positive=ref(98, 0), negative=ref(98, 1), latent_image=ref(98, 2), denoise=1.0)
     add(93, "VaeDecodeTextureTrellis", samples=ref(12), vae=ref(118), shape_subdivides=ref(92, 1))
     # mesh post-processing and baking
     tex = p.get("texture_size", 4096)
-    add(241, "RemeshMesh", mesh=ref(92), resolution=768, sign_mode="solid",
+    add(241, "RemeshMesh", mesh=ref(92), resolution=remesh, sign_mode="solid",
         **{"sign_mode.fill": 20.0, "sign_mode.qef": False}, band=1.0, project_back=0.0, fix_poles=False,
         smooth_iters=20, drop_small_components=0.01, precluster_max_verts=20_000_000)
     add(186, "DecimateMesh", mesh=ref(241), target_face_count=p.get("max_faces", 700_000), placement_mode="midpoint")

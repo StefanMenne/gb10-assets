@@ -25,3 +25,16 @@ def test_links_resolve(run_py, remove_background):
     assert ("RemoveBackground" in {n["class_type"] for n in wf.values()}) == remove_background
     assert wf["94"]["inputs"]["target_resolution"] == 1024 and wf["186"]["inputs"]["target_face_count"] == 50_000
     assert {wf[n]["class_type"] for n in ("400", "402")} == {"SaveGLB", "SaveImage"}
+
+
+@pytest.mark.parametrize("params, resolution, remesh, steps", [
+    ({}, 2048, 1024, (25, 30, 20, 20)),
+    ({"fast": True}, 1536, 768, (12, 20, 12, 12)),
+    ({"fast": True, "resolution": 2048}, 2048, 1024, (12, 20, 12, 12)),
+    ({"resolution": 1024}, 1024, 768, (25, 30, 20, 20)),
+])
+def test_quality_settings(run_py, params, resolution, remesh, steps):
+    wf = run_py.workflow("in.png", 7, params)
+    assert wf["94"]["inputs"]["target_resolution"] == resolution and wf["241"]["inputs"]["resolution"] == remesh
+    assert tuple(wf[n]["inputs"]["steps"] for n in ("3", "18", "23", "12")) == steps
+    assert wf["319"]["inputs"]["unet_name"] == "pixal3d_bf16.safetensors"

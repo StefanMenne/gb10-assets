@@ -12,7 +12,7 @@
     gb10-assets audio-to-video "prompt" -a song.wav -o DIR [-i first.png] [-d 10]
     gb10-assets control-video "prompt" -c depth.mp4 -o DIR [-i first.png] [-s 0.8] [-n 2] [--frames]
     gb10-assets retake in.mp4 "prompt" --start 2 --end 4 -o DIR [--regenerate video|audio]
-    gb10-assets 3d object.png -o DIR [--resolution 1024] [--faces 50000] [--texture 2048] [--keep-background]
+    gb10-assets 3d object.png -o DIR [--fast] [--faces 50000] [--texture 2048] [--keep-background]
     gb10-assets cutout image.png [image2.png ...] -o DIR [--mask]
     gb10-assets track FRAMES_DIR -q queries.json -o DIR [--resolution 256]   (or several PNG files)
     gb10-assets blender [FILE ...] (--script NAME | --code FILE.py) -o DIR [-- ARGS ...]   (--list: the scripts)
@@ -161,7 +161,8 @@ def main(argv: list[str] | None = None) -> None:
 
     d3 = sub.add_parser("3d", parents=[gen], help="image to textured 3D model, GLB (Pixal3D)")
     d3.add_argument("image")
-    d3.add_argument("--resolution", type=int, choices=[1024, 1536], default=1536, help="1024: about twice as fast")
+    d3.add_argument("--fast", action="store_true", help="about 3x faster (~4 min), a bit less detail")
+    d3.add_argument("--resolution", type=int, choices=[1024, 1536, 2048], help="voxels: 2048, with --fast 1536")
     d3.add_argument("--faces", type=int, default=700_000, help="faces of the mesh")
     d3.add_argument("--texture", type=int, choices=[1024, 2048, 4096], default=4096, help="texture map size")
     d3.add_argument("--keep-background", action="store_true", help="do not cut the object out first")
@@ -257,7 +258,7 @@ def main(argv: list[str] | None = None) -> None:
                                                "seed": a.seed})
         elif a.cmd == "3d":
             _submit_and_fetch(a, "pixal3d", {"image": a.image, "remove_background": not a.keep_background,
-                                             "resolution": a.resolution, "max_faces": a.faces,
+                                             "fast": a.fast, "resolution": a.resolution, "max_faces": a.faces,
                                              "texture_size": a.texture, "count": a.count, "seed": a.seed})
         elif a.cmd == "cutout":
             _submit_and_fetch(a, "birefnet", {"images": a.images, "mask": a.mask})

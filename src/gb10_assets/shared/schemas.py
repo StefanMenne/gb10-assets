@@ -243,8 +243,10 @@ class ImageTo3D(JobRequest):
     image: FileName = Field(description="One object, ideally on a plain background")
     remove_background: bool = Field(True, description="Cut the object out first (BiRefNet); off for images that "
                                                       "already have a transparent or clean black background")
-    resolution: Literal[1024, 1536] = Field(1536, description="Voxel resolution of the shape: 1536 more detail, "
-                                                              "1024 about twice as fast")
+    fast: bool = Field(False, description="About 3x faster (~4 instead of ~13 min for a figure): voxel resolution "
+                                          "1536 instead of 2048 and fewer sampling steps, a bit less detail")
+    resolution: Literal[1024, 1536, 2048] | None = Field(None, description="Voxel resolution of the shape, "
+                                                                           "default 2048 (1536 with fast)")
     max_faces: int = Field(700_000, ge=10_000, le=2_000_000, description="Faces of the exported mesh")
     texture_size: Literal[1024, 2048, 4096] = Field(4096, description="Side of the PBR texture maps")
     seed: Seed | None = None
