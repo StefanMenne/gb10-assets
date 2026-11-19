@@ -249,6 +249,9 @@ class ImageTo3D(JobRequest):
                                                                            "default 2048 (1536 with fast)")
     max_faces: int = Field(700_000, ge=10_000, le=2_000_000, description="Faces of the exported mesh")
     texture_size: Literal[1024, 2048, 4096] = Field(4096, description="Side of the PBR texture maps")
+    texture_guidance: float = Field(1.0, ge=1.0, le=5.0, description=(
+        "How strongly the texture follows the image (CFG of the texture step): 1 = none, as in the original; "
+        "2-3 more contrast and sharper patterns, but also oversaturated colors"))
     seed: Seed | None = None
     count: Annotated[int, Field(ge=1, le=4, description="Number of variants (seeds seed..seed+count-1)")] = 1
 
@@ -308,6 +311,9 @@ BLENDER_SCRIPTS = {
     "tex_adjust": "in.glb out.glb [--recolor R,G,B>R,G,B@radius [--region box]] [--whiten box] [--metal 0]: "
                   "recolor the texture, also only in a 3D region, remove metal",
     "tex_hair": "in.glb out.glb --color R,G,B@radius|--dark L [--region box]: paint hair strands into the texture",
+    "wood_material": "model.glb out.blend [--wood oak|walnut|pine|beech] [--depth 0.004] [--stain 0] "
+                     "[--glb out.glb] [--preview out.png]: carved-wood look, procedural 3D wood plus a bump map "
+                     "from the texture's fine patterns (.blend for rendering, --glb baked)",
     "talk_video": "rig.blend voice.wav out.mp4 [--mode fast|slow]: video of a rig_quadruped figure speaking "
                   "the recording (jaw follows the loudness)",
     "depth_video": "rigged.glb depth.mp4 [--action Walk] [--seconds 5] [--res 1024x1024] [--fill 0.78] [--turn 0] "

@@ -165,6 +165,8 @@ def main(argv: list[str] | None = None) -> None:
     d3.add_argument("--resolution", type=int, choices=[1024, 1536, 2048], help="voxels: 2048, with --fast 1536")
     d3.add_argument("--faces", type=int, default=700_000, help="faces of the mesh")
     d3.add_argument("--texture", type=int, choices=[1024, 2048, 4096], default=4096, help="texture map size")
+    d3.add_argument("--texture-guidance", type=float, default=1.0,
+                    help="1-5, how strongly the texture follows the image (2-3: more contrast, oversaturated)")
     d3.add_argument("--keep-background", action="store_true", help="do not cut the object out first")
     d3.add_argument("-n", "--count", type=int, default=1)
     d3.add_argument("--seed", type=int)
@@ -259,7 +261,8 @@ def main(argv: list[str] | None = None) -> None:
         elif a.cmd == "3d":
             _submit_and_fetch(a, "pixal3d", {"image": a.image, "remove_background": not a.keep_background,
                                              "fast": a.fast, "resolution": a.resolution, "max_faces": a.faces,
-                                             "texture_size": a.texture, "count": a.count, "seed": a.seed})
+                                             "texture_size": a.texture,
+                                             "texture_guidance": a.texture_guidance, "count": a.count, "seed": a.seed})
         elif a.cmd == "cutout":
             _submit_and_fetch(a, "birefnet", {"images": a.images, "mask": a.mask})
         elif a.cmd == "track":

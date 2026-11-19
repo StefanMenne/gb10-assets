@@ -38,3 +38,8 @@ def test_quality_settings(run_py, params, resolution, remesh, steps):
     assert wf["94"]["inputs"]["target_resolution"] == resolution and wf["241"]["inputs"]["resolution"] == remesh
     assert tuple(wf[n]["inputs"]["steps"] for n in ("3", "18", "23", "12")) == steps
     assert wf["319"]["inputs"]["unet_name"] == "pixal3d_bf16.safetensors"
+    assert wf["12"]["inputs"]["cfg"] == 1.0   # texture_guidance default
+
+
+def test_texture_guidance(run_py):
+    assert run_py.workflow("in.png", 7, {"texture_guidance": 2.5})["12"]["inputs"]["cfg"] == 2.5

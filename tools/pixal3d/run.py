@@ -13,6 +13,8 @@ normal and ambient occlusion maps. The DiT runs in bf16 (the template uses the i
 Default: full quality, 2048 voxels, remesh at 1024 and more steps than the template. `fast`: the template's
 1536 voxels, remesh at 768 and step counts, 2-3x faster. Measured on the GB10: 216 s / 101 s (fast) for a
 slim figure, 776 s / ~230 s for a broad, detailed one; the time grows with the object's surface.
+`texture_guidance`: CFG of the texture sampler, 1.0 (no guidance) as in the template and the original
+TRELLIS.2; higher follows the image more strongly: more contrast, also oversaturated colors.
 Outputs: model_<seed>.glb per variant and model_<seed>.png, a front render of it.
 """
 import os
@@ -100,7 +102,7 @@ def workflow(image, seed, p):
     add(92, "VaeDecodeShapeTrellis", samples=ref(23), vae=ref(117))
     # texture
     add(98, "Trellis2TextureStage", positive=ref(94, 0), negative=ref(94, 1), shape_latent=ref(23))
-    add(12, "KSampler", model=ref(319), seed=seed, steps=steps[3], cfg=1.0, sampler_name="euler", scheduler="normal",
+    add(12, "KSampler", model=ref(319), seed=seed, steps=steps[3], cfg=p.get("texture_guidance", 1.0), sampler_name="euler", scheduler="normal",
         positive=ref(98, 0), negative=ref(98, 1), latent_image=ref(98, 2), denoise=1.0)
     add(93, "VaeDecodeTextureTrellis", samples=ref(12), vae=ref(118), shape_subdivides=ref(92, 1))
     # mesh post-processing and baking

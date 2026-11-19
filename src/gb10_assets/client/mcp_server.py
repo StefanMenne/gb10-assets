@@ -318,6 +318,9 @@ def build(adapter: Adapter | None = None) -> MCPServer:
                                                             "with fast) or 1024")] = None,
         max_faces: Annotated[int, Field(description="Faces of the mesh (10000-2000000); lower for game assets")] = 700_000,
         texture_size: Annotated[int, Field(description="PBR texture size: 1024, 2048 or 4096")] = 4096,
+        texture_guidance: Annotated[float, Field(description=(
+            "1-5: how strongly the texture follows the image; 1 (default) as in the original, 2-3 more contrast "
+            "and sharper patterns (e.g. as the source of a wood_material bump), but oversaturated colors"))] = 1.0,
         count: Annotated[int, Field(description="Number of variants in this job (1-4)")] = 1,
         seed: Annotated[int | None, Field(description="Start seed; variants use seed..seed+count-1")] = None,
     ) -> dict:
@@ -326,7 +329,8 @@ def build(adapter: Adapter | None = None) -> MCPServer:
         occlusion) and model_<seed>.png, a render of it. Takes ~4-13 minutes per variant (longer for large,
         detailed objects), ~2-4 with fast. Returns a job_id."""
         params = {"image": image, "remove_background": remove_background, "fast": fast, "resolution": resolution,
-                  "max_faces": max_faces, "texture_size": texture_size, "count": count, "seed": seed}
+                  "max_faces": max_faces, "texture_size": texture_size, "texture_guidance": texture_guidance,
+                  "count": count, "seed": seed}
         return submitted(adapter.client.submit("pixal3d", params))
 
     @tool()

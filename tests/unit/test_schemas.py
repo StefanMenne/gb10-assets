@@ -179,8 +179,8 @@ def test_video_memory_model_matches_the_tool():
 
 def test_image_to_3d():
     r = ImageTo3D(image="chair.png")
-    assert (r.remove_background, r.fast, r.resolution, r.max_faces, r.texture_size, r.count) == (
-        True, False, None, 700_000, 4096, 1)
+    assert (r.remove_background, r.fast, r.resolution, r.max_faces, r.texture_size, r.texture_guidance, r.count) == (
+        True, False, None, 700_000, 4096, 1.0, 1)
     assert r.input_files() == ["chair.png"] and REQUESTS["pixal3d"] is ImageTo3D
 
 
@@ -190,6 +190,8 @@ def test_image_to_3d():
     {"image": "a.png", "max_faces": 5},
     {"image": "a.png", "texture_size": 3000},
     {"image": "a.png", "count": 5},
+    {"image": "a.png", "texture_guidance": 0.5},
+    {"image": "a.png", "texture_guidance": 6},
     {"image": "a.png", "prompt": "x"},
 ])
 def test_image_to_3d_invalid(params):
