@@ -30,10 +30,11 @@ matters). Then, as needed:
 
 - `tex_adjust` with `--metal 0` when the render looks metallic, `--whiten box` for an invented back
 - `tex_eyes` (painted eyes) or `tex_eyecover` + `eye_geo` (eyes as geometry) when the eyes look wrong
-- `wood_material` for figures carved from wood: replaces the colors with procedural wood and turns the fine
-  texture patterns (ornaments, hair, seams) into a bump. Its `.blend` is for rendering in Blender (glTF stores
-  no bump or procedural shader); `--glb out.glb` bakes both into a GLB. Patterns come out crisper from an
-  `image_to_3d` with `texture_guidance` 2-3 (the colors then oversaturate, which does not matter here)
+- `tex_bump` when the figure is rendered with its own material instead of the texture (wood, stone, clay):
+  turns the fine contours of the texture (eyes, ornaments, hair strands) into a bump map PNG for the material's
+  bump input, so they stay visible as relief; `--glb out.glb` adds them into the model's normal map instead
+  (glTF has no bump map). Contours come out crisper from an `image_to_3d` with `texture_guidance` 2-3 (the
+  colors then oversaturate, which does not matter here)
 
 ## 4. Rig and animate
 

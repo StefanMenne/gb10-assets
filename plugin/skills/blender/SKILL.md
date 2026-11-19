@@ -23,7 +23,7 @@ arguments, so a first try with the obvious arguments is fine.
 | texture: recolor, remove metal, whiten an invented back | `tex_adjust` |
 | eyes | `tex_eyes`, `tex_eyecover`, `eye_geo` |
 | hair strands | `tex_hair` |
-| carved-wood look: procedural wood, texture patterns as bump (`.blend`; `--glb` baked) | `wood_material` |
+| keep the texture's contours (eyes, ornaments, hair) as relief when rendering with another material | `tex_bump` |
 | talking figure video from a voice recording | `talk_video` (needs the `--save-blend` of `rig_quadruped`) |
 | animation as a depth video, the control video for `control_video` | `depth_video` (see the game-figure skill) |
 

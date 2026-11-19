@@ -311,9 +311,9 @@ BLENDER_SCRIPTS = {
     "tex_adjust": "in.glb out.glb [--recolor R,G,B>R,G,B@radius [--region box]] [--whiten box] [--metal 0]: "
                   "recolor the texture, also only in a 3D region, remove metal",
     "tex_hair": "in.glb out.glb --color R,G,B@radius|--dark L [--region box]: paint hair strands into the texture",
-    "wood_material": "model.glb out.blend [--wood oak|walnut|pine|beech] [--depth 0.004] [--stain 0] "
-                     "[--glb out.glb] [--preview out.png]: carved-wood look, procedural 3D wood plus a bump map "
-                     "from the texture's fine patterns (.blend for rendering, --glb baked)",
+    "tex_bump": "model.glb bump.png [--detail 1] [--invert] [--glb out.glb] [--depth 0.004] [--preview out.png]: "
+                "bump map from the texture's fine contours (eyes, ornaments, hair) for rendering with any other "
+                "material; --glb adds it into the model's normal map",
     "talk_video": "rig.blend voice.wav out.mp4 [--mode fast|slow]: video of a rig_quadruped figure speaking "
                   "the recording (jaw follows the loudness)",
     "depth_video": "rigged.glb depth.mp4 [--action Walk] [--seconds 5] [--res 1024x1024] [--fill 0.78] [--turn 0] "
