@@ -323,10 +323,11 @@ def build(adapter: Adapter | None = None) -> MCPServer:
             "Local path of an image of one object, ideally on a plain background; generate one first if needed"))],
         remove_background: Annotated[bool, Field(description="Cut the object out first; False only for an image "
                                                              "with a clean black or transparent background")] = True,
-        fast: Annotated[bool, Field(description="2-3x faster, a bit less detail: for first tries and many "
-                                                "variants")] = False,
-        resolution: Annotated[int | None, Field(description="Voxels of the shape: 2048 (default), 1536 (default "
-                                                            "with fast) or 1024")] = None,
+        model: Annotated[str, Field(description=(
+            "pixal3d (default): the shape follows the image pixel-aligned, in its camera perspective; trellis2: "
+            "TRELLIS.2, without the camera"))] = "pixal3d",
+        resolution: Annotated[int | None, Field(description="Voxels of the shape: 1536 (default), 2048 (more "
+                                                            "detail, slower) or 1024")] = None,
         max_faces: Annotated[int, Field(description="Faces of the mesh (10000-2000000); lower for game assets")] = 700_000,
         texture_size: Annotated[int, Field(description="PBR texture size: 1024, 2048 or 4096")] = 4096,
         texture_guidance: Annotated[float, Field(description=(
@@ -337,9 +338,9 @@ def build(adapter: Adapter | None = None) -> MCPServer:
     ) -> dict:
         """Create a textured 3D model from one image with Pixal3D (TRELLIS.2 based): the shape follows the image,
         in the photo's camera perspective. Outputs model_<seed>.glb (PBR: base color, metallic, roughness, normal,
-        occlusion) and model_<seed>.png, a render of it. Takes ~4-13 minutes per variant (longer for large,
-        detailed objects), ~2-4 with fast. Returns a job_id."""
-        params = {"image": image, "remove_background": remove_background, "fast": fast, "resolution": resolution,
+        occlusion) and model_<seed>.png, a render of it. Runs Comfy-Org's ComfyUI template "Pixal3D & TRELLIS.2:
+        Image to Model". Takes ~2-4 minutes per variant (longer for large, detailed objects). Returns a job_id."""
+        params = {"image": image, "remove_background": remove_background, "model": model, "resolution": resolution,
                   "max_faces": max_faces, "texture_size": texture_size, "texture_guidance": texture_guidance,
                   "count": count, "seed": seed}
         return submitted(adapter.client.submit("pixal3d", params))

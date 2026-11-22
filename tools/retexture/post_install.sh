@@ -5,7 +5,7 @@
 #   tools/retexture/post_install.sh PYTHON BUILD_DIR
 set -euo pipefail
 
-COMFYUI_REV=63be2f9b82ad0dac88a7ceaa28a9cf3154125a18   # v0.42.1, the same as tools/pixal3d (tests check it)
+COMFYUI_REV=a277b5bf213e8a44fa34817b7770b54f86ef4cea   # v0.46.0, the same as tools/pixal3d (tests check it)
 dest=$2/ComfyUI
 
 if [[ $(cat "$dest/.rev" 2>/dev/null) != "$COMFYUI_REV" ]]; then

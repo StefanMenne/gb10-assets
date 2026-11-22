@@ -99,6 +99,57 @@ class ComfyUI:
         return d
 
 
+FRONTEND_ONLY = {"Note", "MarkdownNote"}   # nodes of the editor that ComfyUI's server does not run
+CONTROL_VALUES = {"fixed", "increment", "decrement", "randomize"}   # the editor's "control after generate"
+
+
+def api_format(ui_workflow, outputs):
+    """A workflow saved by ComfyUI's editor (nodes and links) in API format, as the editor's "Export (API)" does:
+    widget values by input name, links as [node id, output slot]. Only the given output nodes and the nodes they
+    need are kept. Supports flat workflows: no subgraphs, no muted or bypassed nodes."""
+    if ui_workflow.get("definitions", {}).get("subgraphs"):
+        raise ValueError("workflows with subgraphs are not supported")
+    links = {link[0]: (str(link[1]), link[2]) for link in ui_workflow["links"]}
+    api = {}
+    for node in ui_workflow["nodes"]:
+        if node["type"] in FRONTEND_ONLY:
+            continue
+        if node.get("mode", 0) != 0:
+            raise ValueError(f"node {node['id']} ({node['type']}) is muted or bypassed")
+        widgets = [i for i in node.get("inputs", []) if "widget" in i]
+        values = list(node.get("widgets_values") or [])
+        inputs, k = {}, 0
+        for n, widget in enumerate(widgets):
+            if k >= len(values):
+                raise ValueError(f"node {node['id']} ({node['type']}): no value for {widget['name']}")
+            inputs[widget["name"]] = values[k]
+            k += 1
+            # an INT widget can be followed by its "control after generate" mode, which is no input
+            if (widget["type"] == "INT" and k < len(values) and values[k] in CONTROL_VALUES
+                    and len(values) - k > len(widgets) - n - 1):
+                k += 1
+        if k != len(values):
+            raise ValueError(f"node {node['id']} ({node['type']}): {len(values)} widget values for "
+                             f"{len(widgets)} widgets")
+        for i in node.get("inputs", []):
+            if i.get("link") is not None:
+                inputs[i["name"]] = list(links[i["link"]])
+        api[str(node["id"])] = {"class_type": node["type"], "inputs": inputs}
+    return prune(api, outputs)
+
+
+def prune(api, outputs):
+    """The nodes of a workflow in API format that the given output nodes need, themselves included."""
+    keep, todo = set(), [str(o) for o in outputs]
+    while todo:
+        nid = todo.pop()
+        if nid in keep:
+            continue
+        keep.add(nid)
+        todo += [v[0] for v in api[nid]["inputs"].values() if isinstance(v, list)]
+    return {nid: node for nid, node in api.items() if nid in keep}
+
+
 def start(comfyui: Path, weights: Path, files: dict, tool: str):
     """Check the installation, start ComfyUI and wait until it answers. files: {folder: name or (names)}."""
     from _worker import log

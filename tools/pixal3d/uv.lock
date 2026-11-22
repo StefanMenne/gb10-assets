@@ -158,11 +158,11 @@ wheels = [
 
 [[package]]
 name = "comfy-aimdo"
-version = "0.5.6"
+version = "0.6.0"
 source = { registry = "https://pypi.org/simple" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/49/0b/a878152f2a091d9370a6a5554de8807da556de70531f938bea2159c6a7ef/comfy_aimdo-0.5.6-cp39-abi3-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:56f62d68d60ecdcb258614e6f20b758021f8214112731d898552c9d0d587c46e", size = 659238, upload-time = "2026-10-07T21:58:01.548Z" },
-    { url = "https://files.pythonhosted.org/packages/9a/56/4b81638c327e437ba12be826e5a9012960ec51f74a405003142c29960c6c/comfy_aimdo-0.5.6-py3-none-any.whl", hash = "sha256:9b327269e7b20712a496da7ab72923f4b784a7824c4dc2509760f3227c214e47", size = 25074, upload-time = "2026-10-07T21:58:07.996Z" },
+    { url = "https://files.pythonhosted.org/packages/bd/71/b6c3e8e1711e3738eb6878e286050698058472a509d5733af8b3ddad61c8/comfy_aimdo-0.6.0-cp39-abi3-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:c7775d6122873a710a375f25a32174ada5f0cdee874932d171104a11708dbe00", size = 668226, upload-time = "2026-10-21T23:20:13.584Z" },
+    { url = "https://files.pythonhosted.org/packages/e1/b7/4df602266532178ee08e267747a4a31aded7c81738a0c4482303ce004fa2/comfy_aimdo-0.6.0-py3-none-any.whl", hash = "sha256:0f71c893f030303dea339fdf6e300414661dadabbb3f03d3e7c5b3c4a632c0fb", size = 25555, upload-time = "2026-10-21T23:20:19.038Z" },
 ]
 
 [[package]]
@@ -175,11 +175,11 @@ wheels = [
 
 [[package]]
 name = "comfy-kitchen"
-version = "0.2.39"
+version = "0.2.41"
 source = { registry = "https://pypi.org/simple" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/65/74/49b9bda642e1b0abc1a0d15a0d65ef5057aee475696b022f3b8c9b2e3d58/comfy_kitchen-0.2.39-cp312-abi3-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:6f76b1291e4d5dc8c5afc0c2b31e41545470e167e6ac90330360a1818cac3647", size = 37219419, upload-time = "2026-10-18T20:20:57.287Z" },
-    { url = "https://files.pythonhosted.org/packages/2d/59/ea43aae26ab4e3cb94731359dad8037d6277425b956f273902e1e186f876/comfy_kitchen-0.2.39-py3-none-any.whl", hash = "sha256:6e5fe77dd5208b6aba0fa9ef93700ca7450f861bbef496c7101db751cf6eb78c", size = 253129, upload-time = "2026-10-18T20:21:09.807Z" },
+    { url = "https://files.pythonhosted.org/packages/49/e3/f6738af148e634075e41c6b96b007aa2d6bd670d3d484a157f14526f8bb5/comfy_kitchen-0.2.41-cp312-abi3-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:161ee74206277182be7d31faa0b5f2e079b37c076092c276c90bea2e086f6e1e", size = 37637289, upload-time = "2026-11-05T01:45:00.529Z" },
+    { url = "https://files.pythonhosted.org/packages/98/50/25c120039731b874daeec5aa771e0787a8acd074aeb2a3354e005a91f067/comfy_kitchen-0.2.41-py3-none-any.whl", hash = "sha256:19bdd7f8aaa35c512ef69393038ddca51f030bcabf6a7694fdf1660bcae8c66a", size = 264906, upload-time = "2026-11-05T01:45:20.616Z" },
 ]
 
 [[package]]
@@ -332,14 +332,14 @@ requires-dist = [
     { name = "alembic" },
     { name = "av", specifier = ">=17.0.0" },
     { name = "blake3" },
-    { name = "comfy-aimdo", specifier = "==0.5.6" },
+    { name = "comfy-aimdo", specifier = "==0.6.0" },
     { name = "comfy-angle" },
-    { name = "comfy-kitchen", specifier = "==0.2.39" },
+    { name = "comfy-kitchen", specifier = "==0.2.41" },
     { name = "einops" },
     { name = "filelock" },
     { name = "kornia", specifier = ">=0.7.1" },
     { name = "numpy", specifier = ">=1.25.0" },
-    { name = "pillow" },
+    { name = "pillow", specifier = ">=10.1.0" },
     { name = "psutil" },
     { name = "pydantic", specifier = "~=2.0" },
     { name = "pydantic-settings", specifier = "~=2.0" },

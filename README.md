@@ -29,7 +29,7 @@ The server's [dashboard](#dashboard) shows GPU, memory and tool state and an eve
 | `qwen-tts` | [Qwen3-TTS 1.7B VoiceDesign](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign) and [Base](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-Base) | speech with a voice designed from a description or cloned from a recording; de, en, es, fr, it, ja, ko, pt, ru, zh | Apache-2.0 | ~9 GB | `gb10-assets voice`, `speak` |
 | `confucius-tts` | [Confucius4-TTS](https://huggingface.co/netease-youdao/Confucius4-TTS) | cross-lingual voice cloning (e.g. a German voice speaking Thai); 14 languages incl. th, vi, id, ms | Apache-2.0 | ~6 GB | `gb10-assets speak-multilingual` |
 | `ltx-video` | [LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5) 22B distilled, NVFP4 | video with sound from text or keyframe images, video for an audio track, motion from a control video (depth, edges, pose; Union Control IC-LoRA), retake of a time range | [LTX-2.x Community](https://github.com/Lightricks/LTX-2/blob/main/LICENSE-2_x)¹ | ~50 GB | `gb10-assets video`, `audio-to-video`, `control-video`, `retake` |
-| `pixal3d` | [Pixal3D](https://huggingface.co/Comfy-Org/Pixal3D) (on TRELLIS.2), run by [ComfyUI](https://github.com/Comfy-Org/ComfyUI) | one image to a textured 3D model: GLB with PBR maps (base color, metallic, roughness, normal, occlusion) | MIT² | ~15 GB | `gb10-assets 3d` |
+| `pixal3d` | [Pixal3D](https://huggingface.co/Comfy-Org/Pixal3D) (on TRELLIS.2), run by [ComfyUI](https://github.com/Comfy-Org/ComfyUI) with Comfy-Org's template "Pixal3D & TRELLIS.2: Image to Model" | one image to a textured 3D model: GLB with PBR maps (base color, metallic, roughness, normal, occlusion); `--model trellis2`: the template's TRELLIS.2 path | MIT² | ~13 GB | `gb10-assets 3d` |
 | `retexture` | [Qwen-Image-2512](https://huggingface.co/Qwen/Qwen-Image-2512) with the [Fun ControlNet Union](https://huggingface.co/alibaba-pai/Qwen-Image-2512-Fun-Controlnet-Union) (depth) and [SeedVR2 3B](https://huggingface.co/ByteDance-Seed/SeedVR2-3B), run by [ComfyUI](https://github.com/Comfy-Org/ComfyUI); Blender for the geometry | a new texture for a GLB from a prompt, on its own UVs: the views around the model are painted one after another, each inpainting only what the earlier ones have not seen, delit and baked; mesh, normal map and rig stay | Apache-2.0 | ~69 GB⁴ | `gb10-assets retexture` |
 | `birefnet` | [BiRefNet-matting](https://huggingface.co/ZhengPeng7/BiRefNet-matting), run by [ComfyUI](https://github.com/Comfy-Org/ComfyUI) | remove the background: PNG with soft alpha (hair, fur, motion blur) at the image's full resolution, optionally the mask | MIT² | ~0.9 GB | `gb10-assets cutout` |
 | `tapnet` | [TAPNet BootsTAPIR](https://github.com/google-deepmind/tapnet) (Google DeepMind) | track points through video frames, also through short occlusions: root motion of walk cycles (sprite-animation skill) | Apache-2.0 | ~0.2 GB | `gb10-assets track` |
@@ -41,7 +41,9 @@ gated, so downloading it needs `HF_TOKEN` and the license accepted on its Huggin
 ² Pixal3D, TRELLIS.2, BiRefNet and MoGe are MIT; the DINOv3 image encoder it uses is under Meta's
 [DINOv3 License](https://huggingface.co/facebook/dinov3-vitl16-pretrain-lvd1689m). ComfyUI (GPL-3.0) is
 downloaded at installation and runs as a separate process; its native 3D nodes need none of the
-non-commercial NVIDIA libraries (nvdiffrast, nvdiffrec) of the original TRELLIS.2 code.
+non-commercial NVIDIA libraries (nvdiffrast, nvdiffrec) of the original TRELLIS.2 code. The workflow of
+`pixal3d` is Comfy-Org's template from [workflow_templates](https://github.com/Comfy-Org/workflow_templates)
+(MIT, [tools/pixal3d/workflow.LICENSE](tools/pixal3d/workflow.LICENSE)).
 
 ³ There is no bpy for Linux ARM64 on PyPI: the first installation builds Blender from source (about 15 minutes
 and 10 GB of temporary space; later installations reuse the built wheel). It runs in its own worker process.
@@ -201,7 +203,7 @@ gb10-assets audio-to-video "a woman sings into a microphone on stage" -a song.wa
 gb10-assets retake clip.mp4 "the fox jumps over a log" --start 2 --end 4 -o ~/gb10-videos       # edit a segment
 gb10-assets control-video "a plush rabbit in a studio" -c depth.mp4 -i rabbit.png -o ~/gb10-videos # motion of depth.mp4
 gb10-assets 3d chair.png -o ~/gb10-3d                                                          # image to GLB
-gb10-assets 3d chair.png --fast --faces 50000 --texture 2048 -o ~/gb10-3d                      # faster, game-ready
+gb10-assets 3d chair.png --faces 50000 --texture 2048 -o ~/gb10-3d                             # game-ready
 gb10-assets retexture chair.glb "a chair of dark oak, red velvet seat" -o ~/gb10-3d                # new texture
 gb10-assets cutout fox.png knight.jpg -o ~/gb10-images                                          # transparent background
 gb10-assets track frames/ -q queries.json -o ~/gb10-track                                       # point tracks (sprites.py queries)

@@ -234,8 +234,9 @@ class GenerateVideo(JobRequest):
 
 
 class ImageTo3D(JobRequest):
-    """Pixal3D (on TRELLIS.2, run by ComfyUI): one image to a textured 3D model (GLB with PBR materials). The
-    shape follows the image pixel-aligned, in the camera perspective of the photo."""
+    """Pixal3D (on TRELLIS.2, run by ComfyUI with Comfy-Org's image-to-model template): one image to a textured
+    3D model (GLB with PBR materials). The shape follows the image pixel-aligned, in the camera perspective of
+    the photo."""
 
     tool: ClassVar[str] = "pixal3d"
     input_fields: ClassVar[tuple[str, ...]] = ("image",)
@@ -243,10 +244,11 @@ class ImageTo3D(JobRequest):
     image: FileName = Field(description="One object, ideally on a plain background")
     remove_background: bool = Field(True, description="Cut the object out first (BiRefNet); off for images that "
                                                       "already have a transparent or clean black background")
-    fast: bool = Field(False, description="2-3x faster, a bit less detail: voxel resolution 1536 instead of "
-                                          "2048 and fewer sampling steps")
+    model: Literal["pixal3d", "trellis2"] = Field("pixal3d", description=(
+        "pixal3d: the shape follows the image pixel-aligned, in its camera perspective; trellis2: TRELLIS.2, "
+        "the template's other path, without the camera"))
     resolution: Literal[1024, 1536, 2048] | None = Field(None, description="Voxel resolution of the shape, "
-                                                                           "default 2048 (1536 with fast)")
+                                                                           "default 1536 (the template's)")
     max_faces: int = Field(700_000, ge=10_000, le=2_000_000, description="Faces of the exported mesh")
     texture_size: Literal[1024, 2048, 4096] = Field(4096, description="Side of the PBR texture maps")
     texture_guidance: float = Field(1.0, ge=1.0, le=5.0, description=(
