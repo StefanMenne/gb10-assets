@@ -9,6 +9,7 @@
     POST   /unload                     stop the idle worker and free its memory (409 while a job runs)
     POST   /shutdown                   shut the host down (409 without the host helper, see power.py)
     PUT    /shutdown/idle              JSON {"enabled": bool, "minutes": int}: shut down after that time without jobs
+    GET    /power-on                   PowerOn: how a client switches the host on when it is off (404: not set up)
     GET    /tools                      tool names and their parameter JSON schemas
     POST   /jobs                       multipart: field "request" = SubmitJob JSON, files "files" = inputs
     GET    /jobs                       all jobs
@@ -29,7 +30,7 @@ from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 from pydantic import ValidationError
 
 from .. import __version__
-from ..shared.schemas import REQUESTS, BlenderScript, Health, JobInfo, SubmitJob, check_file_name
+from ..shared.schemas import REQUESTS, BlenderScript, Health, JobInfo, PowerOn, SubmitJob, check_file_name
 from .config import Settings
 from .monitor import Monitor
 from .power import IdleShutdown, Power
@@ -119,6 +120,12 @@ def create_app(settings: Settings, queue: JobQueue | None = None) -> FastAPI:
     def shutdown_idle(idle: IdleShutdown) -> dict:
         power.set_idle(idle)
         return power.state()
+
+    @app.get("/power-on", dependencies=[Depends(auth)])
+    def power_on() -> PowerOn:
+        if settings.power_on is None:
+            raise HTTPException(404, "switching the host on is not set up: scripts/docker.sh power-on")
+        return PowerOn.parse(settings.power_on)
 
     @app.post("/unload", dependencies=[Depends(auth)])
     def unload() -> dict:

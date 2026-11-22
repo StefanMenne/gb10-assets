@@ -30,6 +30,7 @@ The server's [dashboard](#dashboard) shows GPU, memory and tool state and an eve
 | `confucius-tts` | [Confucius4-TTS](https://huggingface.co/netease-youdao/Confucius4-TTS) | cross-lingual voice cloning (e.g. a German voice speaking Thai); 14 languages incl. th, vi, id, ms | Apache-2.0 | ~6 GB | `gb10-assets speak-multilingual` |
 | `ltx-video` | [LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5) 22B distilled, NVFP4 | video with sound from text or keyframe images, video for an audio track, motion from a control video (depth, edges, pose; Union Control IC-LoRA), retake of a time range | [LTX-2.x Community](https://github.com/Lightricks/LTX-2/blob/main/LICENSE-2_x)¹ | ~50 GB | `gb10-assets video`, `audio-to-video`, `control-video`, `retake` |
 | `pixal3d` | [Pixal3D](https://huggingface.co/Comfy-Org/Pixal3D) (on TRELLIS.2), run by [ComfyUI](https://github.com/Comfy-Org/ComfyUI) | one image to a textured 3D model: GLB with PBR maps (base color, metallic, roughness, normal, occlusion) | MIT² | ~15 GB | `gb10-assets 3d` |
+| `retexture` | [Qwen-Image-2512](https://huggingface.co/Qwen/Qwen-Image-2512) with the [Fun ControlNet Union](https://huggingface.co/alibaba-pai/Qwen-Image-2512-Fun-Controlnet-Union) (depth) and [SeedVR2 3B](https://huggingface.co/ByteDance-Seed/SeedVR2-3B), run by [ComfyUI](https://github.com/Comfy-Org/ComfyUI); Blender for the geometry | a new texture for a GLB from a prompt, on its own UVs: the views around the model are painted one after another, each inpainting only what the earlier ones have not seen, delit and baked; mesh, normal map and rig stay | Apache-2.0 | ~69 GB⁴ | `gb10-assets retexture` |
 | `birefnet` | [BiRefNet-matting](https://huggingface.co/ZhengPeng7/BiRefNet-matting), run by [ComfyUI](https://github.com/Comfy-Org/ComfyUI) | remove the background: PNG with soft alpha (hair, fur, motion blur) at the image's full resolution, optionally the mask | MIT² | ~0.9 GB | `gb10-assets cutout` |
 | `tapnet` | [TAPNet BootsTAPIR](https://github.com/google-deepmind/tapnet) (Google DeepMind) | track points through video frames, also through short occlusions: root motion of walk cycles (sprite-animation skill) | Apache-2.0 | ~0.2 GB | `gb10-assets track` |
 | `blender` | [Blender](https://www.blender.org) 5.2 as a Python module (bpy), Cycles and EEVEE on the GPU | Python scripts on 3D models: bundled ones for rigging and animating figures, texture and eye fixes, previews, depth videos and videos of talking figures, or own code | GPL-3.0³ | none (1.9 GB installed) | `gb10-assets blender` |
@@ -45,6 +46,8 @@ non-commercial NVIDIA libraries (nvdiffrast, nvdiffrec) of the original TRELLIS.
 ³ There is no bpy for Linux ARM64 on PyPI: the first installation builds Blender from source (about 15 minutes
 and 10 GB of temporary space; later installations reuse the built wheel). It runs in its own worker process.
 Jobs of this tool may run their own Python code, see [Blender code](#blender-code).
+
+⁴ The Qwen-Image weights in ComfyUI's format; when `qwen-image` is installed they are joined from its files (the same tensors) instead of downloaded, then only ~12 GB are downloaded. Needs the `blender` tool installed.
 
 The server keeps one model in memory at a time and switches when a job for another tool arrives.
 
@@ -127,6 +130,22 @@ server runs without a token. The server in the container has no rights on the ho
 and runs `systemctl poweroff`. Anyone who can write to `JOBS_DIR`, which includes own Blender code, can
 therefore shut down the host.
 
+**Switching on:** with the host on a smart plug, clients can switch it on again after a shutdown. The host
+must start when its power returns (in the BIOS/UEFI: power on after AC power loss). Set the plug up once on the
+GB10 system:
+
+```sh
+scripts/docker.sh power-on shelly shelly1      # Shelly plug at http://shelly1 (Gen1 to Gen3; /1 for relay 1)
+scripts/docker.sh power-on url http://plug/on  # any other plug: a URL to GET
+scripts/docker.sh power-on                     # show and check the setting; `power-on off` removes it
+```
+
+It writes `POWER_ON` into `.env` and restarts the server. Every client that reaches the server fetches the
+command (`GET /power-on`) and keeps it in `~/.config/gb10-assets/power-on.json`; `gb10-assets power-on` (or the
+plugin's `power_on` tool) then switches the host on and waits until the server answers, about 1-2 minutes. Let the
+plug cut the power after a shutdown, for example with a script on the Shelly that switches off below 2 W; a plug
+that is still on while the host is off is switched off for 10 seconds and on again.
+
 ## Client installation
 
 The client needs two values from the server:
@@ -183,6 +202,7 @@ gb10-assets retake clip.mp4 "the fox jumps over a log" --start 2 --end 4 -o ~/gb
 gb10-assets control-video "a plush rabbit in a studio" -c depth.mp4 -i rabbit.png -o ~/gb10-videos # motion of depth.mp4
 gb10-assets 3d chair.png -o ~/gb10-3d                                                          # image to GLB
 gb10-assets 3d chair.png --fast --faces 50000 --texture 2048 -o ~/gb10-3d                      # faster, game-ready
+gb10-assets retexture chair.glb "a chair of dark oak, red velvet seat" -o ~/gb10-3d                # new texture
 gb10-assets cutout fox.png knight.jpg -o ~/gb10-images                                          # transparent background
 gb10-assets track frames/ -q queries.json -o ~/gb10-track                                       # point tracks (sprites.py queries)
 gb10-assets blender fox.glb --script rig_hop -o ~/gb10-3d -- fox.glb fox_rigged.glb               # animated GLB
@@ -190,6 +210,7 @@ gb10-assets blender fox_rigged.glb --script preview -o ~/gb10-3d -- fox_rigged.g
 gb10-assets blender model.glb --code measure.py -o ~/gb10-3d -- model.glb                       # own bpy script
 gb10-assets blender --list                                                                     # bundled scripts
 gb10-assets health                                                                             # server state
+gb10-assets power-on                                                                           # switch the host on
 gb10-assets log <job-id>                                                                       # log of a failed job
 ```
 
@@ -289,6 +310,7 @@ Absolute paths, `~/...` and paths relative to the repo directory work. Compose m
 | `update` | reinstall the installed tools whose definition changed, after `build` |
 | `uninstall TOOL ...` | delete a tool's directory (environment and weights), after a confirmation |
 | `status` (`list`) | container state, server version, queue and dashboard address, then all tools and their state: installed, outdated, incomplete, not installed |
+| `power-on [shelly HOST \| url URL \| off]` | set up how clients switch the host on (a smart plug), see [Dashboard](#dashboard); without arguments shows and checks it |
 | `install-shutdown` / `uninstall-shutdown` | install or remove the systemd units that let the [dashboard](#dashboard) shut down the host (uses `sudo`) |
 
 The script wraps plain Docker Compose: `docker compose build`, `docker compose up -d` and so on work too.

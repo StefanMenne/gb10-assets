@@ -256,6 +256,35 @@ class ImageTo3D(JobRequest):
     count: Annotated[int, Field(ge=1, le=4, description="Number of variants (seeds seed..seed+count-1)")] = 1
 
 
+class Retexture(JobRequest):
+    """Paint a new base color texture for a 3D model from a text prompt, on the model's own UVs (Qwen-Image-2512
+    with a depth ControlNet, run by ComfyUI; Blender for the geometry). The views are painted one after another,
+    each inpainting only what the earlier ones have not seen, so they stay consistent; their lighting is
+    removed before baking. Mesh, UVs, normal map, rig and animations stay unchanged."""
+
+    tool: ClassVar[str] = "retexture"
+    input_fields: ClassVar[tuple[str, ...]] = ("model",)
+
+    model: FileName = Field(description="GLB with one mesh, a UV map and one base color texture (e.g. from "
+                                        "image_to_3d, also rigged)")
+    prompt: str = Field(min_length=1, max_length=4000, description=(
+        "What the object looks like: colors, materials, patterns, details; describe the object, not the lighting"))
+    views: int = Field(6, ge=4, le=8, description="Cameras around the object, alternately left and right of the "
+                                                  "front")
+    top: bool = Field(True, description="One more view from above (heads, hats, the top of objects)")
+    texture_size: Literal[1024, 2048, 4096] = Field(2048, description="Side of the new base color texture")
+    upscale: bool = Field(True, description="SeedVR2 upscales every view 2x before baking: sharper textures, "
+                                            "~20 s more per view")
+    control_strength: float = Field(0.9, ge=0.3, le=1.0, description=(
+        "How closely the painted views follow the model's depth: lower gives the model more freedom, but paint "
+        "can slip off the geometry"))
+    delight: float = Field(1.0, ge=0.0, le=1.0, description="Remove the painted lighting: 1 fully, 0 not at all")
+    reset_pbr: bool = Field(True, description=(
+        "Drop the old metallic-roughness map (it belongs to the old paint): metallic 0, roughness 0.8"))
+    seed: Seed | None = None
+    count: Annotated[int, Field(ge=1, le=4, description="Number of variants (seeds seed..seed+count-1)")] = 1
+
+
 class RemoveBackground(JobRequest):
     """BiRefNet-matting (run by ComfyUI): cut the main object out of images with soft edges, at their full
     resolution. Per image <stem>_cutout.png with a transparent background, optionally <stem>_mask.png."""
@@ -346,7 +375,7 @@ class BlenderScript(JobRequest):
 
 
 REQUESTS: dict[str, type[JobRequest]] = {
-    m.tool: m for m in (GenerateImage, EditImage, Speak, SpeakMultilingual, GenerateVideo, ImageTo3D,
+    m.tool: m for m in (GenerateImage, EditImage, Speak, SpeakMultilingual, GenerateVideo, ImageTo3D, Retexture,
                         RemoveBackground, TrackPoints, BlenderScript)}
 
 
@@ -383,6 +412,30 @@ class JobInfo(BaseModel):
     outputs: list[str] = Field(default_factory=list, description="Result file names, available when done")
     error: str | None = None
     log_tail: list[str] = Field(default_factory=list)
+
+
+class PowerOn(BaseModel):
+    """How a client switches the server's host on while it is off (GET /power-on, kept by the client).
+
+    ``shelly``: the host hangs on a Shelly smart plug at ``url`` (http://<host>), relay ``switch``; the host
+    boots when its power returns (BIOS: power on after AC loss). ``http``: one GET of ``url`` switches it on."""
+
+    kind: Literal["shelly", "http"]
+    url: str = Field(pattern=r"^https?://[^\s]+$")
+    switch: int = Field(0, ge=0, le=15)
+
+    @classmethod
+    def parse(cls, spec: str) -> PowerOn:
+        """From the server setting POWER_ON: shelly://<host>[/<switch>] or an http(s) URL to GET."""
+        spec = spec.strip()
+        if spec.startswith("shelly://"):
+            host, _, switch = spec[len("shelly://"):].strip("/").partition("/")
+            if not host:
+                raise ValueError(f"POWER_ON={spec!r}: shelly://<host>[/<switch>]")
+            return cls(kind="shelly", url=f"http://{host}", switch=int(switch or 0))
+        if spec.startswith(("http://", "https://")):
+            return cls(kind="http", url=spec)
+        raise ValueError(f"POWER_ON={spec!r}: expected shelly://<host>[/<switch>] or http(s)://<url>")
 
 
 class Health(BaseModel):

@@ -34,6 +34,7 @@ TOOLS: dict[str, ToolSpec] = {t.name: t for t in (
     ToolSpec("confucius-tts", min_free_gb=20),  # measured peak ~13 GB (3 short texts); long texts need more
     ToolSpec("ltx-video", min_free_gb=102),  # jobs are limited to ~98 GB peak (MAX_GB in tools/ltx-video/run.py)
     ToolSpec("pixal3d", min_free_gb=40),  # measured peak ~31 GB (bf16 DiT, resolution 2048, 4096 textures)
+    ToolSpec("retexture", min_free_gb=80),  # measured peak ~66 GB (Qwen-Image bf16, text encoder, ControlNet, SeedVR2)
     ToolSpec("birefnet", min_free_gb=8),  # measured peak ~4 GB (3 images, one of them 4096x4096)
     ToolSpec("tapnet", min_free_gb=8),  # measured peak ~4.4 GB (48 frames 1024x768, 512x512 model input)
     ToolSpec("blender", min_free_gb=8),  # bpy itself ~1 GB; scripts on big meshes or renders need more

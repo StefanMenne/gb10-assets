@@ -27,6 +27,8 @@ class Settings:
     blender_code: bool = True        # blender tool: also run own code, not only the bundled scripts
     # dashboard (no authentication): show job parameters (prompts cut to 160 characters, never own code)
     dashboard_details: bool = False
+    # how clients switch the host on (POWER_ON, see shared.schemas.PowerOn.parse); None: not configured
+    power_on: str | None = None
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -47,4 +49,17 @@ class Settings:
             job_ttl_h=float(os.environ.get("JOB_TTL_H", 24)),
             blender_code=_flag("BLENDER_CODE", "1"),
             dashboard_details=_flag("DASHBOARD_DETAILS", "0"),
+            power_on=_power_on(os.environ.get("POWER_ON", "")),
         )
+
+
+def _power_on(spec: str) -> str | None:
+    """Checked at startup, so that a typo shows in the server log at once and not on the client later."""
+    if not spec.strip():
+        return None
+    from ..shared.schemas import PowerOn
+    try:
+        PowerOn.parse(spec)
+    except ValueError as e:
+        raise SystemExit(str(e)) from None
+    return spec.strip()

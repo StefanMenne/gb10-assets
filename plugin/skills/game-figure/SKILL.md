@@ -29,6 +29,10 @@ Show the sheet to the user and let them pick; fix details with `edit_image` inst
 matters). Then, as needed:
 
 - `tex_adjust` with `--metal 0` when the render looks metallic, `--whiten box` for an invented back
+- `retexture_model` when the texture as a whole is wrong (blurry or invented back, baked-in light and shadows,
+  wrong colors) or the user wants another look for the same shape: paints a new, consistent texture from a
+  prompt on the model's UVs (a few minutes); describe colors and materials per part, not the lighting. Check
+  `views_<seed>.png` and the render; it also works on a rigged GLB
 - `tex_eyes` (painted eyes) or `tex_eyecover` + `eye_geo` (eyes as geometry) when the eyes look wrong
 - `tex_bump` when the figure is rendered with its own material instead of the texture (wood, stone, clay):
   turns the fine contours of the texture (eyes, ornaments, hair strands) into a bump map PNG for the material's

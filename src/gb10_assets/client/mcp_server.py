@@ -15,7 +15,8 @@ from pydantic import Field
 
 from .. import __version__
 from ..shared.schemas import BLENDER_SCRIPTS, JobInfo, JobState
-from .http_client import ApiError, Client, VersionMismatch, track_params
+from . import power
+from .http_client import ApiError, Client, Unreachable, VersionMismatch, track_params
 
 MAX_WAIT_S = 600
 LOG_LINES = 60  # blender: end of the job log returned with the files (the script's print output)
@@ -33,9 +34,12 @@ speak_multilingual clones a voice into languages such as Thai, even from a refer
 Video (with sound): generate_video from text and keyframe images, audio_to_video for a given soundtrack,
 retake_video to regenerate a time range of a video. A video job takes minutes; look at the .jpg frames.
 3D: image_to_3d turns one image of an object into a textured GLB (several minutes); look at the .png render.
+retexture_model paints a new texture for a GLB from a prompt (keeps mesh, UVs and rig).
 Blender: blender runs bundled scripts or own bpy code on files (rigging, animation, texture fixes, renders).
 Tracking: track_points follows points through video frames (root motion of walk cycles, see the
-sprite-animation skill)."""
+sprite-animation skill).
+Power: when the server is not reachable because its host is off, power_on switches it on (if the server was set
+up for it and reached once before) and waits until it answers; then call the tool again."""
 
 BLENDER_DESCRIPTION = """Run a Python script in Blender 5.2 (bpy, headless, GPU: Cycles on CUDA, EEVEE) on the server.
 Give either `script` (bundled, below) or `code` (own Python), plus `args` like a command line (sys.argv[1:]) and
@@ -79,6 +83,7 @@ class Adapter:
         if not self._checked:
             self._client.check_version()
             self._checked = True
+            power.remember(self._client)
         return self._client
 
     def startup_check(self) -> None:
@@ -90,6 +95,7 @@ class Adapter:
         try:
             h = self._client.check_version(quick=True)
             self._checked = True
+            power.remember(self._client)
             print(f"[gb10-assets] connected to {self._client.url}, server {h.version}, API v{h.api_version}",
                   file=sys.stderr)
         except VersionMismatch:
@@ -120,6 +126,11 @@ def build(adapter: Adapter | None = None) -> MCPServer:
                     return fn(*args, **kw)
                 except ToolError:
                     raise
+                except Unreachable as e:
+                    hint = ""
+                    if adapter._client is not None and power.stored(adapter._client.url):
+                        hint = " The host may be off: power_on switches it on, then call this tool again."
+                    raise ToolError(str(e) + hint) from e
                 except ApiError as e:
                     raise ToolError(str(e)) from e
                 except Exception as e:
@@ -334,6 +345,39 @@ def build(adapter: Adapter | None = None) -> MCPServer:
         return submitted(adapter.client.submit("pixal3d", params))
 
     @tool()
+    def retexture_model(
+        model: Annotated[str, Field(description=(
+            "Local path of a GLB with one mesh, a UV map and one base color texture (e.g. from image_to_3d, "
+            "also after rigging)"))],
+        prompt: Annotated[str, Field(description=(
+            "English description of how the object should look: colors, materials, patterns, details per part "
+            "(e.g. 'a medieval queen, red velvet dress with gold trim, blond braided hair, golden crown with "
+            "rubies'); describe the object, not the lighting"))],
+        views: Annotated[int, Field(description="Cameras around the object (4-8)")] = 6,
+        top: Annotated[bool, Field(description="One more view from above")] = True,
+        texture_size: Annotated[int, Field(description="Texture size: 1024, 2048 or 4096")] = 2048,
+        upscale: Annotated[bool, Field(description="SeedVR2 2x upscaling of every view before baking "
+                                                   "(sharper, a bit slower)")] = True,
+        control_strength: Annotated[float, Field(description=(
+            "0.3-1: how closely the paint follows the model's shape; lower gives more freedom"))] = 0.9,
+        delight: Annotated[float, Field(description="0-1: how much painted lighting to remove")] = 1.0,
+        reset_pbr: Annotated[bool, Field(description=(
+            "Drop the old metallic-roughness map (it belongs to the old paint)"))] = True,
+        count: Annotated[int, Field(description="Number of variants in this job (1-4)")] = 1,
+        seed: Annotated[int | None, Field(description="Start seed; variants use seed..seed+count-1")] = None,
+    ) -> dict:
+        """Paint a new base color texture for a 3D model from a text prompt, on the model's own UVs: the views
+        around the model are painted one after another with Qwen-Image-2512 and a depth ControlNet, each only
+        filling what earlier views have not seen, then their lighting is removed and they are baked into the
+        texture. Mesh, UVs, normal map, rig and animations stay. Outputs model_<seed>.glb, model_<seed>.png (4
+        renders: look at it), views_<seed>.png (the painted views) and texture_<seed>.png. Takes ~5 minutes (~2
+        without upscale). Returns a job_id."""
+        params = {"model": model, "prompt": prompt, "views": views, "top": top, "texture_size": texture_size,
+                  "upscale": upscale, "control_strength": control_strength, "delight": delight,
+                  "reset_pbr": reset_pbr, "count": count, "seed": seed}
+        return submitted(adapter.client.submit("retexture", params))
+
+    @tool()
     def remove_background(
         images: Annotated[list[str], Field(description="Local paths of the images (1-32)")],
         mask: Annotated[bool, Field(description="Also return the mask (white = object)")] = False,
@@ -399,6 +443,21 @@ def build(adapter: Adapter | None = None) -> MCPServer:
             result["log"] = client.log(job_id).splitlines()[-LOG_LINES:]
         client.delete(job_id)
         return result
+
+    @tool()
+    def power_on(
+        wait: Annotated[int, Field(description=f"Seconds to wait for the server to answer (0-{MAX_WAIT_S})")] = 300,
+    ) -> dict:
+        """Switch the server's host on when it is off (e.g. after an idle shutdown), with the command the server
+        handed out the last time it was reached (a smart plug: the host boots when its power returns), and wait
+        until the server answers, ~1-2 minutes. Does nothing when the server is on. Fails when no command is
+        known: the host must be set up for it (`scripts/docker.sh power-on`) and reached once while on.
+        If the call continues in the background, wait for its completion notice."""
+        if adapter._client is None:
+            adapter._client = Client()
+        message = power.power_on(adapter._client, wait=max(0, min(wait, MAX_WAIT_S)))
+        adapter._checked = False   # check the version of the server that came up on the next call
+        return {"result": message}
 
     @tool()
     def cancel_job(job_id: str) -> dict:

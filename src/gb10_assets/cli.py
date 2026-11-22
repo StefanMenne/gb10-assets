@@ -13,10 +13,12 @@
     gb10-assets control-video "prompt" -c depth.mp4 -o DIR [-i first.png] [-s 0.8] [-n 2] [--frames]
     gb10-assets retake in.mp4 "prompt" --start 2 --end 4 -o DIR [--regenerate video|audio]
     gb10-assets 3d object.png -o DIR [--fast] [--faces 50000] [--texture 2048] [--keep-background]
+    gb10-assets retexture model.glb "prompt" -o DIR [--views 6] [--no-top] [--texture 2048] [--no-upscale]
     gb10-assets cutout image.png [image2.png ...] -o DIR [--mask]
     gb10-assets track FRAMES_DIR -q queries.json -o DIR [--resolution 256]   (or several PNG files)
     gb10-assets blender [FILE ...] (--script NAME | --code FILE.py) -o DIR [-- ARGS ...]   (--list: the scripts)
     gb10-assets status JOB | fetch JOB DIR [--wait 600] | log JOB | cancel JOB
+    gb10-assets power-on [--wait 300] [--show]      switch the server's host on (command kept from the server)
 
 Generating commands wait for the result by default (--no-wait: print the job id and return).
 """
@@ -30,8 +32,11 @@ from pathlib import Path
 def _client():
     from .client.http_client import Client
 
+    from .client.power import remember
+
     c = Client()
     c.check_version()
+    remember(c)
     return c
 
 
@@ -171,6 +176,20 @@ def main(argv: list[str] | None = None) -> None:
     d3.add_argument("-n", "--count", type=int, default=1)
     d3.add_argument("--seed", type=int)
 
+    rx = sub.add_parser("retexture", parents=[gen],
+                        help="paint a new texture for a GLB from a prompt, on its own UVs (Qwen-Image + ControlNet)")
+    rx.add_argument("model", help="GLB with one mesh, UVs and a base color texture")
+    rx.add_argument("prompt", help="what the object looks like (colors, materials, patterns)")
+    rx.add_argument("--views", type=int, default=6, help="cameras around the object (4-8)")
+    rx.add_argument("--no-top", action="store_true", help="no extra view from above")
+    rx.add_argument("--texture", type=int, choices=[1024, 2048, 4096], default=2048, help="texture size")
+    rx.add_argument("--no-upscale", action="store_true", help="no SeedVR2 2x upscaling of the views (faster)")
+    rx.add_argument("--strength", type=float, default=0.9, help="0.3-1, how closely the paint follows the depth")
+    rx.add_argument("--delight", type=float, default=1.0, help="0-1, how much painted lighting to remove")
+    rx.add_argument("--keep-pbr", action="store_true", help="keep the old metallic-roughness map")
+    rx.add_argument("-n", "--count", type=int, default=1)
+    rx.add_argument("--seed", type=int)
+
     co = sub.add_parser("cutout", parents=[gen], help="remove the background of images, PNG with alpha (BiRefNet-matting)")
     co.add_argument("images", nargs="+")
     co.add_argument("--mask", action="store_true", help="also save the mask")
@@ -190,6 +209,10 @@ def main(argv: list[str] | None = None) -> None:
     bl.add_argument("--script", help="bundled script (--list)")
     bl.add_argument("--code", help="local Python file to run instead")
     bl.add_argument("--list", action="store_true", help="list the bundled scripts")
+
+    po = sub.add_parser("power-on", help="switch the server's host on with the command kept from the server")
+    po.add_argument("--wait", type=float, default=300, help="seconds to wait for the server (0: do not wait)")
+    po.add_argument("--show", action="store_true", help="only show the kept command")
 
     for name in ("status", "log", "cancel"):
         sub.add_parser(name).add_argument("job")
@@ -222,7 +245,10 @@ def main(argv: list[str] | None = None) -> None:
             serve(a.host, a.port)
         elif a.cmd == "health":
             from .client.http_client import Client
-            print(Client().health().model_dump_json(indent=2))
+            from .client.power import remember
+            c = Client()
+            print(c.health().model_dump_json(indent=2))
+            remember(c)
         elif a.cmd == "image":
             _submit_and_fetch(a, "qwen-image", {"prompt": a.prompt, "count": a.count, "seed": a.seed,
                                                 "width": a.width, "height": a.height})
@@ -263,6 +289,12 @@ def main(argv: list[str] | None = None) -> None:
                                              "fast": a.fast, "resolution": a.resolution, "max_faces": a.faces,
                                              "texture_size": a.texture,
                                              "texture_guidance": a.texture_guidance, "count": a.count, "seed": a.seed})
+        elif a.cmd == "retexture":
+            _submit_and_fetch(a, "retexture", {"model": a.model, "prompt": a.prompt, "views": a.views,
+                                               "top": not a.no_top, "texture_size": a.texture,
+                                               "upscale": not a.no_upscale, "control_strength": a.strength,
+                                               "delight": a.delight, "reset_pbr": not a.keep_pbr,
+                                               "count": a.count, "seed": a.seed})
         elif a.cmd == "cutout":
             _submit_and_fetch(a, "birefnet", {"images": a.images, "mask": a.mask})
         elif a.cmd == "track":
@@ -272,6 +304,16 @@ def main(argv: list[str] | None = None) -> None:
             code = Path(a.code).read_text() if a.code else None
             _submit_and_fetch(a, "blender", {"files": a.files, "script": a.script, "code": code,
                                              "args": script_args})
+        elif a.cmd == "power-on":
+            from .client import power
+            from .client.http_client import Client
+            c = Client()
+            if a.show:
+                cmd = power.stored(c.url)
+                print(cmd.model_dump_json(indent=2) if cmd else f"no power-on command kept for {c.url} "
+                      f"({power.store_path()})")
+            else:
+                print(power.power_on(c, wait=a.wait, log=lambda m: print(m, file=sys.stderr)))
         elif a.cmd == "status":
             print(_client().status(a.job).model_dump_json(indent=2, exclude_none=True))
         elif a.cmd == "log":

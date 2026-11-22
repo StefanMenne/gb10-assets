@@ -19,6 +19,7 @@ services:
       MEMORY_WAIT_S: ${MEMORY_WAIT_S:-600}
       WORKER_READY_S: ${WORKER_READY_S:-1800}
       JOB_TTL_H: ${JOB_TTL_H:-24}
+      POWER_ON: ${POWER_ON:-}
     volumes:
       # relative paths are resolved against this directory
       - ${INSTALL_DIR:-./installed}:/installed
