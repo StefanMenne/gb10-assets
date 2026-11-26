@@ -154,9 +154,13 @@ function clock(t) {
 }
 function dur(s) {
   if (s == null) return "–";
-  if (s < 60) return `${s < 10 ? s.toFixed(1) : Math.round(s)} s`;
-  if (s < 3600) return `${Math.floor(s / 60)} min ${Math.round(s % 60)} s`;
-  return `${Math.floor(s / 3600)} h ${Math.round((s % 3600) / 60)} min`;
+  // round to the shown precision first, then split, so 719.6 s is "12 min 0 s" and not "11 min 60 s"
+  if (s < 9.95) return `${s.toFixed(1)} s`;
+  const r = Math.round(s);
+  if (r < 60) return `${r} s`;
+  if (r < 3600) return `${Math.floor(r / 60)} min ${r % 60} s`;
+  const m = Math.round(s / 60);
+  return `${Math.floor(m / 60)} h ${m % 60} min`;
 }
 const ago = t => dur(Math.max(0, Date.now() / 1000 - t)) + " ago";
 const evTime = ev => Date.parse(ev.time) / 1000;
